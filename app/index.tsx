@@ -1,10 +1,19 @@
+import { Redirect } from "expo-router";
 import { View, Text, StyleSheet } from "react-native";
 
+import { useAuth } from "@/hooks/useAuth";
+
 export default function IndexScreen(): React.ReactElement {
+  const { session, isLoading } = useAuth();
+
+  if (!isLoading && !session) {
+    return <Redirect href="/(auth)/sign-in" />;
+  }
+
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Habit Tracker</Text>
-      <Text style={styles.subtitle}>Project setup complete.</Text>
+      <Text style={styles.title}>Habits</Text>
+      <Text style={styles.subtitle}>Habits list screen is the next task.</Text>
     </View>
   );
 }
