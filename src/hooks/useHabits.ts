@@ -41,6 +41,7 @@ export function useHabits(): UseHabitsResult {
       .order("created_at", { ascending: false });
 
     if (fetchError) {
+      console.error("[useHabits] fetch failed:", fetchError);
       setHabits([]);
       setError(fetchError);
       setIsLoading(false);
@@ -138,6 +139,101 @@ export function useHabits(): UseHabitsResult {
     refetch: fetchHabits,
     updateHabit,
     archiveHabit,
+  };
+}
+
+export interface UseArchivedHabitsResult {
+  archivedHabits: Habit[];
+  isLoading: boolean;
+  error: Error | null;
+  refetch: () => Promise<void>;
+  restoreHabit: (id: string) => Promise<Habit>;
+}
+
+/** Habits with `archived_at` set; scoped to the current user (RLS + explicit `user_id`). */
+export function useArchivedHabits(): UseArchivedHabitsResult {
+  const { user, isLoading: isAuthLoading } = useAuth();
+  const [archivedHabits, setArchivedHabits] = useState<Habit[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  const fetchArchived = useCallback(async (): Promise<void> => {
+    if (!user) {
+      setArchivedHabits([]);
+      setIsLoading(false);
+      setError(new Error("Not authenticated."));
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    const { data, error: fetchError } = await supabase
+      .from("habits")
+      .select("*")
+      .eq("user_id", user.id)
+      .not("archived_at", "is", null)
+      .order("archived_at", { ascending: false });
+
+    if (fetchError) {
+      console.error("[useArchivedHabits] fetch failed:", fetchError);
+      setArchivedHabits([]);
+      setError(fetchError);
+      setIsLoading(false);
+      return;
+    }
+
+    setArchivedHabits((data ?? []) as Habit[]);
+    setIsLoading(false);
+  }, [user]);
+
+  useEffect(() => {
+    if (isAuthLoading) {
+      return;
+    }
+
+    void fetchArchived();
+  }, [fetchArchived, isAuthLoading]);
+
+  const restoreHabit = useCallback(
+    async (id: string): Promise<Habit> => {
+      if (!user) {
+        throw new Error("Not authenticated.");
+      }
+
+      const habitId = id.trim();
+      if (!habitId) {
+        throw new Error("Habit id is required.");
+      }
+
+      const now = new Date().toISOString();
+      const { data: updated, error: updateError } = await supabase
+        .from("habits")
+        .update({
+          archived_at: null,
+          updated_at: now,
+        })
+        .eq("id", habitId)
+        .eq("user_id", user.id)
+        .select("*")
+        .single();
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      await fetchArchived();
+      return updated as Habit;
+    },
+    [fetchArchived, user]
+  );
+
+  return {
+    archivedHabits,
+    isLoading: isAuthLoading || isLoading,
+    error,
+    refetch: fetchArchived,
+    restoreHabit,
   };
 }
 

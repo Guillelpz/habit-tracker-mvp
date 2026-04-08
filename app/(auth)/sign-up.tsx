@@ -3,13 +3,15 @@ import { useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
-  View,
 } from "react-native";
 
 import { useAuth } from "@/hooks/useAuth";
+import { getErrorMessage } from "@/utils/errorMessage";
+import { webPointer } from "@/utils/webStyles";
 
 export default function SignUpScreen(): React.ReactElement {
   const { signUp } = useAuth();
@@ -33,14 +35,18 @@ export default function SignUpScreen(): React.ReactElement {
     try {
       await signUp(email.trim(), password);
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Unable to sign up.");
+      setErrorMessage(getErrorMessage(error, "Unable to sign up."));
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <View style={styles.container}>
+    <ScrollView
+      contentContainerStyle={styles.scrollContent}
+      keyboardShouldPersistTaps="handled"
+      style={styles.scroll}
+    >
       <Text style={styles.title}>Sign up</Text>
 
       <TextInput
@@ -68,8 +74,8 @@ export default function SignUpScreen(): React.ReactElement {
       <Pressable
         accessibilityRole="button"
         disabled={isSubmitDisabled}
-        onPress={handleSignUp}
-        style={[styles.button, isSubmitDisabled && styles.buttonDisabled]}
+        onPress={() => void handleSignUp()}
+        style={[styles.button, webPointer, isSubmitDisabled && styles.buttonDisabled]}
       >
         {isSubmitting ? (
           <ActivityIndicator color="#fff" />
@@ -81,16 +87,19 @@ export default function SignUpScreen(): React.ReactElement {
       <Link href="/(auth)/sign-in" style={styles.link}>
         Already have an account? Sign in
       </Link>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  scroll: {
     flex: 1,
+    backgroundColor: "#fff",
+  },
+  scrollContent: {
+    flexGrow: 1,
     justifyContent: "center",
     padding: 20,
-    backgroundColor: "#fff",
   },
   title: {
     fontSize: 28,

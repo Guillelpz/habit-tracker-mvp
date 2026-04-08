@@ -4,14 +4,60 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { Habit } from "@/lib/types";
 import { getDaysInMonth, toDateString } from "@/utils/date";
 import { isExpectedDay } from "@/utils/frequency";
+import { webPointer } from "@/utils/webStyles";
 
 export interface HabitCalendarProps {
   habit: Habit;
   year: number;
   month: number; // 0-11
   completions: string[]; // YYYY-MM-DD
+  /** When true, expected-day cells do not respond to presses (e.g. while a toggle is in flight). */
+  toggleDisabled?: boolean;
   onToggleCompletion: (dateStr: string) => void;
   onMonthChange: (year: number, month: number) => void;
+}
+
+function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
+  const h = hex.trim().replace("#", "");
+  if (h.length !== 6) {
+    return null;
+  }
+  const r = Number.parseInt(h.slice(0, 2), 16);
+  const g = Number.parseInt(h.slice(2, 4), 16);
+  const b = Number.parseInt(h.slice(4, 6), 16);
+  if (Number.isNaN(r) || Number.isNaN(g) || Number.isNaN(b)) {
+    return null;
+  }
+  return { r, g, b };
+}
+
+/** WCAG relative luminance (sRGB), 0–1. */
+function relativeLuminance(r: number, g: number, b: number): number {
+  const linear = [r, g, b].map((c) => {
+    const s = c / 255;
+    return s <= 0.04045 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+  });
+  return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
+}
+
+function contrastRatio(lumBg: number, lumFg: number): number {
+  const lighter = Math.max(lumBg, lumFg);
+  const darker = Math.min(lumBg, lumFg);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+/** Picks #fff or #111827 for maximum contrast on a solid hex background. */
+function completedLabelColor(backgroundHex: string): string {
+  const rgb = hexToRgb(backgroundHex);
+  if (!rgb) {
+    return "#ffffff";
+  }
+  const Lbg = relativeLuminance(rgb.r, rgb.g, rgb.b);
+  const Lwhite = relativeLuminance(255, 255, 255);
+  const Lblack = relativeLuminance(17, 24, 39); // #111827
+  const whiteOnBg = contrastRatio(Lbg, Lwhite);
+  const blackOnBg = contrastRatio(Lbg, Lblack);
+  return whiteOnBg >= blackOnBg ? "#ffffff" : "#111827";
 }
 
 function chunk<T>(items: T[], size: number): T[][] {
@@ -37,6 +83,7 @@ export const HabitCalendar = memo(function HabitCalendar({
   year,
   month,
   completions,
+  toggleDisabled = false,
   onToggleCompletion,
   onMonthChange,
 }: HabitCalendarProps): React.ReactElement {
@@ -91,7 +138,8 @@ export const HabitCalendar = memo(function HabitCalendar({
               const isInMonth = date.getFullYear() === year && date.getMonth() === month;
               const isCompleted = completionSet.has(dateStr);
               const isExpected = isInMonth && isExpectedDay(dateStr, habit.frequency_config);
-              const isTappable = isExpected;
+              const isTappable = isExpected && !toggleDisabled;
+              const isMutedInMonthDay = isInMonth && !isExpected;
 
               return (
                 <Pressable
@@ -102,9 +150,14 @@ export const HabitCalendar = memo(function HabitCalendar({
                   onPress={() => onToggleCompletion(dateStr)}
                   style={({ pressed }) => [
                     styles.cell,
+                    isTappable && webPointer,
                     !isInMonth && styles.cellOutsideMonth,
-                    isExpected && styles.cellExpected,
-                    isCompleted && styles.cellCompleted,
+                    isMutedInMonthDay && styles.cellMutedInMonth,
+                    isExpected && !isCompleted && styles.cellExpectedNeutral,
+                    isCompleted && {
+                      backgroundColor: habit.color,
+                      borderColor: habit.color,
+                    },
                     pressed && isTappable && styles.pressed,
                   ]}
                 >
@@ -112,7 +165,8 @@ export const HabitCalendar = memo(function HabitCalendar({
                     style={[
                       styles.cellText,
                       !isInMonth && styles.cellTextOutsideMonth,
-                      isCompleted && styles.cellTextCompleted,
+                      isMutedInMonthDay && styles.cellTextMutedInMonth,
+                      isCompleted && { color: completedLabelColor(habit.color) },
                     ]}
                   >
                     {date.getDate()}
@@ -199,12 +253,15 @@ const styles = StyleSheet.create({
     backgroundColor: "#f9fafb",
     borderColor: "#f3f4f6",
   },
-  cellExpected: {
-    borderColor: "#cbd5e1",
+  /** In-month days that are not part of the habit schedule (not tappable). */
+  cellMutedInMonth: {
+    backgroundColor: "#f3f4f6",
+    borderColor: "#e5e7eb",
   },
-  cellCompleted: {
-    backgroundColor: "#111827",
-    borderColor: "#111827",
+  /** Expected days not yet completed: neutral, distinct from muted off-days. */
+  cellExpectedNeutral: {
+    backgroundColor: "#fafafa",
+    borderColor: "#cbd5e1",
   },
   cellText: {
     fontSize: 14,
@@ -215,8 +272,9 @@ const styles = StyleSheet.create({
     color: "#9ca3af",
     fontWeight: "500",
   },
-  cellTextCompleted: {
-    color: "#ffffff",
+  cellTextMutedInMonth: {
+    color: "#9ca3af",
+    fontWeight: "500",
   },
   pressed: {
     opacity: 0.75,

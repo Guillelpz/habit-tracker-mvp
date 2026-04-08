@@ -1,11 +1,16 @@
+import { type ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { FREQUENCY_PRESETS } from "@/lib/constants";
 import type { FrequencyConfig } from "@/lib/types";
+import { isWeekCompletionGranularity } from "@/utils/frequency";
+import { webPointer } from "@/utils/webStyles";
 
 export interface FrequencyPickerProps {
   selectedFrequency: FrequencyConfig | null;
   onFrequencyChange: (config: FrequencyConfig) => void;
+  /** When `custom`, week-level completion is not offered (PRD §16.2). Default `weekly`. */
+  frequencyType?: "weekly" | "custom";
 }
 
 const WEEKDAY_LABELS: string[] = ["S", "M", "T", "W", "T", "F", "S"];
@@ -28,12 +33,28 @@ function sameWeekdays(a: number[], b: number[]): boolean {
   return true;
 }
 
-export function FrequencyPicker(props: FrequencyPickerProps): React.ReactElement {
-  const { selectedFrequency, onFrequencyChange } = props;
+export function FrequencyPicker(props: FrequencyPickerProps): ReactElement {
+  const { selectedFrequency, onFrequencyChange, frequencyType = "weekly" } = props;
   const selectedWeekdays = normalizeWeekdays(selectedFrequency?.weekdays ?? []);
 
   const applyWeekdays = (weekdays: number[]): void => {
-    onFrequencyChange({ weekdays: normalizeWeekdays(weekdays) });
+    const next: FrequencyConfig = { weekdays: normalizeWeekdays(weekdays) };
+    if (frequencyType === "weekly" && isWeekCompletionGranularity(selectedFrequency ?? { weekdays: [] })) {
+      next.completion_granularity = "week";
+    }
+    onFrequencyChange(next);
+  };
+
+  const setCompletionGranularity = (mode: "day" | "week"): void => {
+    if (frequencyType !== "weekly") {
+      return;
+    }
+    const w = normalizeWeekdays(selectedFrequency?.weekdays ?? []);
+    if (mode === "week") {
+      onFrequencyChange({ weekdays: w, completion_granularity: "week" });
+    } else {
+      onFrequencyChange({ weekdays: w });
+    }
   };
 
   const toggleWeekday = (weekday: number): void => {
@@ -43,6 +64,10 @@ export function FrequencyPicker(props: FrequencyPickerProps): React.ReactElement
 
     applyWeekdays(next);
   };
+
+  const showWeekGranularity = frequencyType === "weekly";
+  const isWeekMode =
+    showWeekGranularity && selectedFrequency != null && isWeekCompletionGranularity(selectedFrequency);
 
   return (
     <View style={styles.container}>
@@ -58,6 +83,7 @@ export function FrequencyPicker(props: FrequencyPickerProps): React.ReactElement
               onPress={() => applyWeekdays(presetWeekdays)}
               style={({ pressed }) => [
                 styles.presetButton,
+                webPointer,
                 isSelected && styles.presetButtonSelected,
                 pressed && styles.presetButtonPressed,
               ]}
@@ -70,6 +96,44 @@ export function FrequencyPicker(props: FrequencyPickerProps): React.ReactElement
         })}
       </View>
 
+      {showWeekGranularity ? (
+        <View style={styles.granularityBlock}>
+          <Text style={styles.granularityLabel}>Completion</Text>
+          <View style={styles.granularityRow}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ selected: !isWeekMode }}
+              onPress={() => setCompletionGranularity("day")}
+              style={({ pressed }) => [
+                styles.granularityButton,
+                webPointer,
+                !isWeekMode && styles.granularityButtonSelected,
+                pressed && styles.granularityButtonPressed,
+              ]}
+            >
+              <Text style={[styles.granularityText, !isWeekMode && styles.granularityTextSelected]}>
+                By day
+              </Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ selected: isWeekMode }}
+              onPress={() => setCompletionGranularity("week")}
+              style={({ pressed }) => [
+                styles.granularityButton,
+                webPointer,
+                isWeekMode && styles.granularityButtonSelected,
+                pressed && styles.granularityButtonPressed,
+              ]}
+            >
+              <Text style={[styles.granularityText, isWeekMode && styles.granularityTextSelected]}>
+                By week
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      ) : null}
+
       <View style={styles.weekdayRow}>
         {WEEKDAY_LABELS.map((label, weekday) => {
           const isSelected = selectedWeekdays.includes(weekday);
@@ -81,6 +145,7 @@ export function FrequencyPicker(props: FrequencyPickerProps): React.ReactElement
               onPress={() => toggleWeekday(weekday)}
               style={({ pressed }) => [
                 styles.weekdayButton,
+                webPointer,
                 isSelected && styles.weekdayButtonSelected,
                 pressed && styles.weekdayButtonPressed,
               ]}
@@ -129,6 +194,44 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   presetTextSelected: {
+    color: "#fff",
+  },
+  granularityBlock: {
+    gap: 8,
+  },
+  granularityLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#374151",
+  },
+  granularityRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  granularityButton: {
+    minHeight: 44,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#d1d5db",
+    backgroundColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  granularityButtonSelected: {
+    borderColor: "#111827",
+    backgroundColor: "#111827",
+  },
+  granularityButtonPressed: {
+    opacity: 0.9,
+  },
+  granularityText: {
+    color: "#111827",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  granularityTextSelected: {
     color: "#fff",
   },
   weekdayRow: {

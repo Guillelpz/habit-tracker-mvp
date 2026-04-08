@@ -133,6 +133,8 @@ A practical MVP approach is:
 - create/edit habit flow
 - auth screens
 
+MVP v2 additions (week-level weekly habits and custom habit colors) are defined in §16.
+
 ---
 
 ## 7. Excluded from MVP v1
@@ -299,3 +301,38 @@ This MVP should prioritize:
 - reusable structure for future app generation
 
 The implementation should avoid premature complexity and prefer explicit patterns that are easier for AI tools to generate, review, and extend.
+
+---
+
+## 16. MVP v2 — Week-level weekly habits & custom colors
+
+### 16.1 Scope (included)
+
+- **Week-level completion for weekly habits**: For habits that use weekly frequency, the user can choose a mode where the calendar does not require tapping individual days. Instead, the user taps an entire **calendar week** (week row); that week is highlighted in the habit color. Tapping again removes the completion for that week.
+- **Custom habit color**: When creating or editing a habit, the user can set a **custom color** (e.g. hex) in addition to—or instead of—fixed palette choices.
+
+### 16.2 Explicitly not included (v2)
+
+- Partial weeks, per-day overrides, or mixing day-level and week-level completion **on the same habit**
+- Week numbering UX beyond what a normal month grid needs (no ISO week picker separate from the calendar)
+- Color themes, gradients, or multiple colors per habit
+- Changing completion granularity after the habit is created (deferred unless trivial; otherwise document as one-time choice at create)
+
+### 16.3 User-facing behavior
+
+- On create/edit, weekly habits can opt into **“complete by week”** (wording TBD): the habit detail calendar shows week rows as the primary tap targets; completing a week colors that full week in the habit color.
+- Uncompleting a week clears that week’s completion.
+- Create/edit habit: fixed color chips remain available; user can also choose a **custom color** (e.g. system color picker or hex input—implementation choice within MVP simplicity).
+- List and calendar views use the chosen color (preset or custom) consistently.
+
+### 16.4 Affected areas (product)
+
+- Habit create/edit: frequency option for weekly + week-level completion; color UI extended for custom values.
+- Habit detail calendar: layout/interaction for week-level taps when that mode is selected; completion logic aligned with storage rules.
+- Validation: accept custom hex (or chosen format) for `color`.
+
+### 16.5 Risks / complexity
+
+- **Week boundaries**: Define one rule for “which week a day belongs to” (e.g. week starting Monday or Sunday) and use it consistently in UI and storage.
+- **Storage vs. UX**: Decide whether a week completion is one stored value per week (e.g. canonical week-start date) or multiple day rows; keep RLS and uniqueness rules simple.
+- **Custom color**: Contrast/accessibility on the calendar grid is a minor UX risk; optional guardrails (e.g. contrast hint) are out of scope unless quick.

@@ -3,6 +3,7 @@ import { useCallback, useMemo, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
 import type { FrequencyConfig, Habit } from "@/lib/types";
+import { normalizeFrequencyConfigForPersistence } from "@/utils/frequency";
 import { validateHabit } from "@/validation/habit";
 
 export interface HabitFormValues {
@@ -29,8 +30,12 @@ const DEFAULT_VALUES: HabitFormValues = {
   frequency_config: null,
 };
 
-export function useHabitForm(initialValues?: Partial<HabitFormValues>): UseHabitFormResult {
+export function useHabitForm(
+  initialValues?: Partial<HabitFormValues>,
+  options?: { frequencyType?: "weekly" | "custom" },
+): UseHabitFormResult {
   const { user } = useAuth();
+  const frequencyType = options?.frequencyType ?? "weekly";
 
   const mergedInitialValues = useMemo<HabitFormValues>(() => {
     return {
@@ -81,11 +86,12 @@ export function useHabitForm(initialValues?: Partial<HabitFormValues>): UseHabit
       name: values.name,
       color: values.color ?? "",
       frequency_config: values.frequency_config ?? { weekdays: [] },
+      frequency_type: frequencyType,
     });
 
     setErrors(result.errors);
     return result.valid;
-  }, [values.color, values.frequency_config, values.name]);
+  }, [frequencyType, values.color, values.frequency_config, values.name]);
 
   const reset = useCallback((): void => {
     setValues(mergedInitialValues);
@@ -126,7 +132,7 @@ export function useHabitForm(initialValues?: Partial<HabitFormValues>): UseHabit
           name,
           color,
           frequency_type: "weekly",
-          frequency_config: frequencyConfig,
+          frequency_config: normalizeFrequencyConfigForPersistence(frequencyConfig, "weekly"),
         })
         .select("*")
         .single();

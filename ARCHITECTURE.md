@@ -53,29 +53,30 @@ This document defines the technical architecture for the habit tracker app. It i
 habit-tracker-mvp/
 ├── app/                          # Expo Router screens (file-based routing)
 │   ├── (auth)/                   # Auth group
+│   │   ├── _layout.tsx
 │   │   ├── sign-in.tsx
 │   │   └── sign-up.tsx
-│   ├── (tabs)/                   # Main app tabs (if used) or stack
-│   │   ├── _layout.tsx
-│   │   ├── index.tsx             # Habits list (home)
-│   │   └── archived.tsx         # Archived habits (optional)
 │   ├── habit/
-│   │   ├── [id].tsx              # Habit detail (calendar)
-│   │   └── edit/[id].tsx         # Edit habit
-│   ├── habit/new.tsx             # Create habit
+│   │   ├── [id].tsx              # Habit detail (calendar + year overview)
+│   │   ├── edit/[id].tsx         # Edit habit
+│   │   └── new.tsx               # Create habit
 │   ├── _layout.tsx               # Root layout (auth gate)
-│   └── index.tsx                 # Entry redirect
+│   ├── archived.tsx              # Archived habits list
+│   └── index.tsx                 # Habits list (home) + auth redirect
 ├── src/
 │   ├── components/               # Reusable UI components
 │   │   ├── ui/                   # Primitives (Button, Input, etc.)
 │   │   ├── HabitCard.tsx
 │   │   ├── HabitCalendar.tsx
+│   │   ├── HabitYearOverview.tsx
 │   │   ├── ColorPicker.tsx
 │   │   └── FrequencyPicker.tsx
 │   ├── hooks/                    # Custom hooks
-│   │   ├── useAuth.ts
+│   │   ├── useAuth.tsx
+│   │   ├── useHabit.ts
 │   │   ├── useHabits.ts
 │   │   ├── useCompletions.ts
+│   │   ├── useYearCompletions.ts
 │   │   └── useHabitForm.ts
 │   ├── lib/                      # Core utilities and config
 │   │   ├── supabase.ts           # Supabase client
@@ -83,7 +84,9 @@ habit-tracker-mvp/
 │   │   └── constants.ts          # Colors, defaults, etc.
 │   ├── utils/                    # Pure helpers
 │   │   ├── date.ts               # Date handling (see Section 10)
-│   │   └── frequency.ts          # Frequency logic
+│   │   ├── frequency.ts          # Frequency logic
+│   │   ├── errorMessage.ts       # User-facing error strings
+│   │   └── webStyles.ts          # Web-only style helpers (e.g. cursor)
 │   └── validation/               # Form validation schemas
 │       └── habit.ts
 ├── supabase/
@@ -120,14 +123,13 @@ Use **Expo Router** for navigation. It provides:
 
 | Route | Screen | Purpose |
 |-------|--------|---------|
-| `/` | Redirect | Send to habits list if authenticated, else auth |
+| `/` | Habits list / redirect | Home: active habits (authenticated); unauthenticated users are routed to sign-in from root layout |
 | `/(auth)/sign-in` | Sign In | Email/password sign in |
 | `/(auth)/sign-up` | Sign Up | Email/password sign up |
-| `/(tabs)/` or `/` | Habits List | Home: list of active habits |
 | `/habit/new` | Create Habit | Form to create habit |
-| `/habit/[id]` | Habit Detail | Calendar view, mark/unmark completions |
+| `/habit/[id]` | Habit Detail | Calendar view, mark/unmark completions, year overview |
 | `/habit/edit/[id]` | Edit Habit | Form to edit habit |
-| `/(tabs)/archived` | Archived Habits | List of archived habits (optional) |
+| `/archived` | Archived Habits | List of archived habits |
 
 ### Auth Gate
 
@@ -151,7 +153,7 @@ Use **Expo Router** for navigation. It provides:
 Avoid Redux, Zustand, or similar for MVP. Use:
 
 1. **Server state**: Supabase data. Fetched via hooks, optionally cached by React Query or simple `useState`/`useEffect`.
-2. **Auth state**: Supabase Auth session. Exposed via `useAuth` hook.
+2. **Auth state**: Supabase Auth session. Root layout wraps the app in `AuthProvider`; `useAuth()` reads shared session from React context (one subscription, one source of truth).
 3. **Local UI state**: `useState` in components (modals, toggles, etc.).
 4. **Form state**: Controlled inputs or a lightweight form library (see Section 6).
 
@@ -164,7 +166,9 @@ For data fetching and caching:
 - Simple invalidation after mutations
 - Works well with Supabase
 
-If keeping dependencies minimal for MVP, use `useState` + `useEffect` with explicit refetch functions. Document the choice in this section once decided.
+If keeping dependencies minimal for MVP, use `useState` + `useEffect` with explicit refetch functions.
+
+**Current codebase:** no TanStack Query — hooks use `useState` + `useEffect` and explicit `refetch` after mutations. React Query remains optional for a future iteration if caching or deduplication becomes necessary.
 
 ### What NOT to Store Globally
 
@@ -186,13 +190,14 @@ If keeping dependencies minimal for MVP, use `useState` + `useEffect` with expli
 
 - `useHabits()`: Fetch active habits for the current user. Returns `{ habits, isLoading, error, refetch }`.
 - `useHabit(id)`: Fetch a single habit by ID. Returns `{ habit, isLoading, error, refetch }`.
-- `useCompletions(habitId, year, month)`: Fetch completions for a habit in a given month. Returns `{ completions, isLoading, error, refetch }`.
+- `useCompletions(habitId, year, month)`: Fetch completion dates for the **visible calendar grid** for that month (same date bounds as `getMonthGridRange` / `getDaysInMonth`, not the civil month only). Returns `{ completions, isLoading, error, refetch, toggleCompletion }`.
+- `useYearCompletions(habitId, year)`: Fetch completions for a Gregorian year (habit detail year overview).
 - `useAuth()`: Auth state and helpers (`signIn`, `signOut`, `signUp`, `user`, `session`, `isLoading`).
 
 ### Mutation Hooks
 
 - `createHabit`, `updateHabit`, `archiveHabit`: Return mutation functions. Invalidate or refetch habits list on success.
-- `toggleCompletion(habitId, date)`: Insert or delete completion. Refetch completions for that month.
+- `toggleCompletion(habitId, date)`: Insert or delete completion. Refetch completions for that month. For week granularity, `date` is the **canonical week-start** `YYYY-MM-DD` stored in `completed_on`.
 
 ### Error Handling
 
@@ -245,7 +250,7 @@ If keeping dependencies minimal for MVP, use `useState` + `useEffect` with expli
 
 - Use `supabase.auth.onAuthStateChange()` to listen for session changes.
 - Store session in state (or context) for app-wide access.
-- Persist session: Supabase client handles this via AsyncStorage (Expo) or localStorage (web).
+- Persist session: custom storage in `src/lib/supabase.ts` — **expo-secure-store** on iOS/Android (chunked for large session payloads), **localStorage** on web (avoid `@react-native-async-storage/async-storage` when `RNAsyncStorage` is unavailable in Expo Go).
 
 ### Database Access
 
@@ -271,9 +276,9 @@ If keeping dependencies minimal for MVP, use `useState` + `useEffect` with expli
 | id | uuid | PRIMARY KEY, DEFAULT gen_random_uuid() |
 | user_id | uuid | NOT NULL, REFERENCES auth.users(id) ON DELETE CASCADE |
 | name | text | NOT NULL |
-| color | text | NOT NULL (hex or color key) |
+| color | text | NOT NULL (hex or palette key; MVP v2: any validated hex for custom picker) |
 | frequency_type | text | NOT NULL, CHECK IN ('weekly', 'custom') |
-| frequency_config | jsonb | NOT NULL (e.g. `{"weekdays": [0,2,4]}`) |
+| frequency_config | jsonb | NOT NULL (e.g. `{"weekdays": [0,2,4]}`; see **Frequency config (v2)** below) |
 | created_at | timestamptz | DEFAULT now() |
 | updated_at | timestamptz | DEFAULT now() |
 | archived_at | timestamptz | NULL (non-null = archived) |
@@ -305,6 +310,9 @@ If keeping dependencies minimal for MVP, use `useState` + `useEffect` with expli
 - `weekdays`: array of integers 0–6 (Sunday = 0, Monday = 1, …, Saturday = 6).
 - Every day: `[0,1,2,3,4,5,6]`
 - Mon/Wed/Fri: `[1,3,5]`
+
+**Frequency config (v2 — week-level weekly habits)**  
+For `frequency_type === 'weekly'`, optionally include `completion_granularity: "day" | "week"` (default `"day"` for backward compatibility). When `"week"`, the habit detail calendar uses **week-level** taps: one completion applies to a full calendar week (see §11). Storage: prefer a single `completed_on` per week using a **canonical week-start date** (`YYYY-MM-DD`) so `UNIQUE(habit_id, completed_on)` stays valid; `frequency.ts` / calendar map that row to the whole week in the grid.
 
 ### Migrations
 
@@ -369,10 +377,12 @@ Dates must be consistent across timezones. A "completion for March 9" should mea
 ### Key Functions to Implement
 
 - `getTodayDateString(): string` — returns `YYYY-MM-DD` for local today
-- `getMonthRange(year: number, month: number): { start: string, end: string }` — first and last day of month as `YYYY-MM-DD`
+- `getMonthRange(year: number, month: number): { start: string, end: string }` — first and last day of **civil** month as `YYYY-MM-DD`
+- `getMonthGridRange(year: number, month: number): { start: string, end: string }` — first and last day of the **Sunday-first grid** for that month (includes adjacent-month days); used by `useCompletions` and week-start keys that overlap the grid
 - `getDaysInMonth(year: number, month: number): Date[]` — array of dates for calendar grid
 - `formatDateForDisplay(dateStr: string): string` — human-readable format
 - `isSameDay(a: string, b: string): boolean` — compare two date strings
+- (v2) `getWeekStartDateString(dateStr: string): string` — canonical week start for a given day, used when `completion_granularity === 'week'`
 
 ### Avoid
 
@@ -390,6 +400,7 @@ Dates must be consistent across timezones. A "completion for March 9" should mea
 - Completed days highlighted in habit color.
 - Month navigation (previous/next).
 - Tap day to mark/unmark completion (only where habit is expected per frequency).
+- **Week granularity (v2)**: When `frequency_config.completion_granularity === 'week'`, tap targets are **week rows** (not individual days). Toggle inserts/deletes the single completion row for that week’s canonical start date; the UI fills the week strip in the habit color.
 
 ### Component Structure
 
@@ -414,7 +425,7 @@ Dates must be consistent across timezones. A "completion for March 9" should mea
 ### Month Navigation
 
 - Store `year` and `month` in component state (or pass from parent).
-- Buttons or gestures for prev/next. Update state, refetch completions for new month.
+- Buttons or gestures for prev/next. Update state, refetch completions for new month (`useCompletions` uses `getMonthGridRange` so leading/trailing grid days resolve completions).
 
 ---
 
@@ -502,7 +513,8 @@ These constraints help keep AI-generated code aligned with this architecture.
 | State | Hooks + local state; optional React Query |
 | Forms | Controlled components + validation module |
 | Dates | `YYYY-MM-DD` strings, `date` type in DB, utils in `date.ts` |
-| Calendar | Custom grid component, frequency-aware |
+| Calendar | Custom grid component, frequency-aware; optional week-row mode (v2) |
 | RLS | Enabled on all tables, user-scoped policies |
+| Habit color | String; hex validated in forms (presets + custom in v2) |
 
 This architecture prioritizes clarity, consistency, and AI-friendliness while remaining simple enough for rapid MVP development and future reuse.

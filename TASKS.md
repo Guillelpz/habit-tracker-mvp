@@ -754,6 +754,205 @@ This document breaks the project into small, ordered tasks suitable for AI-assis
 
 ---
 
+## Feature: Weekly habit and Custom colors
+
+References: PRD.md §16, ARCHITECTURE.md (frequency config v2, §8–11).
+
+### Task F.1 — Extend types for `completion_granularity`
+
+**Goal**: Model week-level weekly habits in TypeScript without changing DB tables.
+
+**Files likely involved**:
+- `src/lib/types.ts`
+
+**Dependencies**: Existing MVP habit types in place (Phase 4 habit work).
+
+**Acceptance criteria**:
+- [ ] `FrequencyConfig` includes optional `completion_granularity?: 'day' | 'week'` (omit means `'day'` for backward compatibility)
+- [ ] Types document that `'week'` is only meaningful for `frequency_type === 'weekly'`
+- [ ] No changes to `HabitCompletion` shape (still `completed_on` as `YYYY-MM-DD`)
+
+---
+
+### Task F.2 — Week-start date helper
+
+**Goal**: One canonical rule for “which week a calendar day belongs to,” used for storage and UI.
+
+**Files likely involved**:
+- `src/utils/date.ts`
+
+**Dependencies**: Task F.1
+
+**Acceptance criteria**:
+- [ ] Exported `getWeekStartDateString(dateStr: string): string` returns `YYYY-MM-DD` for the week start (pick Monday or Sunday and document in file comment)
+- [ ] Same helper used anywhere week boundaries are computed (no duplicate week logic elsewhere)
+- [ ] Unit-style sanity checks optional but at least manually verified for edge cases (month boundaries)
+
+---
+
+### Task F.3 — Frequency helpers for week granularity
+
+**Goal**: Centralize logic for “is this day expected?” and “does this day fall in a completed week?” for display/tap rules.
+
+**Files likely involved**:
+- `src/utils/frequency.ts`
+
+**Dependencies**: Task F.1, Task F.2
+
+**Acceptance criteria**:
+- [ ] For `completion_granularity !== 'week'`, existing day-level behavior unchanged
+- [ ] For week mode, helpers exist to map a day to its week-start and to test membership against completion rows (week-start stored in `completed_on`)
+- [ ] No UI in this file; pure functions only
+
+---
+
+### Task F.4 — Validation: `frequency_config` and custom hex color
+
+**Goal**: Reject invalid configs and invalid colors at submit time.
+
+**Files likely involved**:
+- `src/validation/habit.ts`
+
+**Dependencies**: Task F.1
+
+**Acceptance criteria**:
+- [ ] `completion_granularity` validated only when present; must be `'day'` or `'week'`
+- [ ] If `frequency_type` is `custom`, `completion_granularity` must not be `'week'` (or must be rejected—align with PRD: week mode for weekly habits only)
+- [ ] `color` accepts preset keys and/or `#RRGGBB` (and optional `#RGB`) per product choice; invalid strings fail validation with clear message
+
+---
+
+### Task F.5 — ColorPicker: presets + custom color
+
+**Goal**: User can choose a fixed chip or a custom color value stored as hex string.
+
+**Files likely involved**:
+- `src/components/ColorPicker.tsx`
+- `src/lib/constants.ts` (if preset list stays here)
+
+**Dependencies**: Task F.4 (validation rules known)
+
+**Acceptance criteria**:
+- [ ] Preset chips unchanged in spirit; user can enter or pick a custom color and see preview
+- [ ] Emits a single string suitable for `habits.color` (hex or agreed preset key)
+- [ ] No habit create/edit screen logic in this component (presentation + callbacks only)
+
+---
+
+### Task F.6 — FrequencyPicker: weekly “complete by week” option
+
+**Goal**: For weekly habits only, user can set `completion_granularity` to `'week'`.
+
+**Files likely involved**:
+- `src/components/FrequencyPicker.tsx`
+
+**Dependencies**: Task F.1, Task F.4
+
+**Acceptance criteria**:
+- [ ] When frequency is weekly, UI exposes “complete by week” (or equivalent) that sets `completion_granularity: 'week'`; otherwise `'day'` or omitted
+- [ ] Custom frequency UI does not offer week granularity (per PRD §16.2 / weekly-only scope)
+- [ ] Emits updated `frequency_config` compatible with Supabase JSON
+
+---
+
+### Task F.7 — Create/Edit habit: wire color and frequency config
+
+**Goal**: Persist new fields when creating or updating habits.
+
+**Files likely involved**:
+- `app/habit/new.tsx`
+- `app/habit/edit/[id].tsx`
+- `src/hooks/useHabitForm.ts` (or equivalent)
+
+**Dependencies**: Task F.5, Task F.6, Task F.4
+
+**Acceptance criteria**:
+- [ ] New habits save `color` including custom hex when chosen
+- [ ] Weekly habits save `completion_granularity` in `frequency_config` as selected
+- [ ] Edit form loads existing `frequency_config` and color; defaults remain correct for old habits (day granularity)
+
+---
+
+### Task F.8 — Completions: week-start toggle and queries
+
+**Goal**: Insert/delete completion using canonical week-start `completed_on` when in week mode; month queries still return rows the calendar can interpret.
+
+**Files likely involved**:
+- `src/hooks/useCompletions.ts`
+- Any mutation helper used by habit detail
+
+**Dependencies**: Task F.2, Task F.3, Task F.7
+
+**Acceptance criteria**:
+- [ ] In week mode, toggle inserts or deletes exactly one row per week with `completed_on === getWeekStartDateString(...)` for that week
+- [ ] In day mode, behavior matches pre–v2 (per-day `completed_on`)
+- [ ] Fetching completions for a visible month includes all `completed_on` dates needed to paint week completions that overlap that month (week-start may fall in previous month—still handled)
+
+---
+
+### Task F.9 — HabitCalendar: week-row interaction and styling
+
+**Goal**: In week mode, week rows are the tap targets; completed weeks fill the row in habit color.
+
+**Files likely involved**:
+- `src/components/HabitCalendar.tsx`
+
+**Dependencies**: Task F.3, Task F.8
+
+**Acceptance criteria**:
+- [ ] Week mode: individual day cells are not used to toggle completion (whole week row toggles)
+- [ ] Day mode: existing interaction unchanged
+- [ ] Completed weeks show full-week highlight using habit color (preset or custom)
+- [ ] Month navigation refetches/re-renders correctly
+
+---
+
+### Task F.10 — HabitYearOverview: week granularity display
+
+**Goal**: Year view stays consistent with week-level completions.
+
+**Files likely involved**:
+- `src/components/HabitYearOverview.tsx`
+
+**Dependencies**: Task F.3, Task F.8, Task F.9 (behavior aligned)
+
+**Acceptance criteria**:
+- [ ] For week-mode habits, days in a completed week reflect completion (same semantics as detail calendar)
+- [ ] Day-mode habits unchanged
+- [ ] Performance acceptable (reuse helpers from `frequency.ts` / `date.ts`)
+
+---
+
+### Task F.11 — Regression and web spot-check
+
+**Goal**: Confirm no regressions for v1 habits and acceptable UX on Android + web.
+
+**Files likely involved**:
+- Manual testing; fix only issues found in feature files
+
+**Dependencies**: Tasks F.5–F.10
+
+**Acceptance criteria**:
+- [ ] Existing habits without `completion_granularity` behave as day-mode
+- [ ] List cards show custom colors correctly
+- [ ] Web: color input and calendar/week interactions work with click (not only touch)
+- [ ] No RLS or unique-constraint errors when toggling week completions
+
+---
+
+### Feature task dependency summary
+
+```
+F.1 → F.2 → F.3
+F.1 → F.4 → F.5
+F.1 → F.6 → F.7
+F.4 → F.6
+F.2, F.3, F.7 → F.8 → F.9 → F.10 → F.11
+F.5 → F.7
+```
+
+---
+
 ## Task Dependency Summary
 
 ```

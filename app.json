@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "habit-tracker-mvp",
+    "name": "Habit Tracker",
     "slug": "habit-tracker-mvp",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -15,23 +15,34 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.habittracker.mvp"
+      "bundleIdentifier": "com.habittracker.mvp",
+      "buildNumber": "1"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.habittracker.mvp"
+      "package": "com.habittracker.mvp",
+      "versionCode": 1
     },
     "web": {
       "bundler": "metro",
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/favicon.png",
+      "backgroundColor": "#ffffff"
     },
     "plugins": [
       "expo-router",
-      "expo-font"
-    ]
+      "expo-font",
+      "expo-secure-store"
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "c31de8ed-a763-45f4-9a31-80f31d070478"
+      }
+    },
+    "owner": "glj2011"
   }
 }

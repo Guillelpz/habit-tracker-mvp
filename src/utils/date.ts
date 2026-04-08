@@ -42,6 +42,30 @@ export function getMonthRange(year: number, month: number): { start: string; end
 }
 
 /**
+ * Inclusive `YYYY-MM-DD` range for the full Sunday-first calendar grid (see `getDaysInMonth`).
+ * Includes leading/trailing days from adjacent months. Use when loading completions for the month
+ * view so every visible cell can match `habit_completions.completed_on` (day or week-start rows).
+ */
+export function getMonthGridRange(year: number, month: number): { start: string; end: string } {
+  const days = getDaysInMonth(year, month);
+  const first = days[0];
+  const last = days[days.length - 1];
+  return {
+    start: toIsoDateStringLocal(first),
+    end: toIsoDateStringLocal(last),
+  };
+}
+
+/** Inclusive calendar range for a Gregorian year (local), as YYYY-MM-DD. */
+export function getYearRange(year: number): { start: string; end: string } {
+  assertValidYearInput(year);
+  return {
+    start: `${year}-01-01`,
+    end: `${year}-12-31`,
+  };
+}
+
+/**
  * Returns the calendar grid days for a given month, including leading/trailing
  * days from adjacent months to fill out full weeks (Sunday-first).
  */
@@ -95,5 +119,19 @@ export function parseDateString(dateStr: string): Date {
 
   const [y, m, d] = dateStr.split("-").map((part) => Number(part));
   return new Date(y, m - 1, d);
+}
+
+/**
+ * Canonical start of the calendar week containing `dateStr`, as `YYYY-MM-DD` in the **local**
+ * calendar (same approach as `getTodayDateString` / `parseDateString`).
+ *
+ * **Week starts on Sunday** (0–6 `Date#getDay()`), matching `getDaysInMonth` (Sunday-first month
+ * grids). Store this value in `habit_completions.completed_on` when using week-level completion.
+ */
+export function getWeekStartDateString(dateStr: string): string {
+  const d = parseDateString(dateStr);
+  const daysSinceSunday = d.getDay();
+  const start = new Date(d.getFullYear(), d.getMonth(), d.getDate() - daysSinceSunday);
+  return toIsoDateStringLocal(start);
 }
 

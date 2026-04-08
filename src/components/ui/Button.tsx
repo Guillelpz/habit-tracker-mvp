@@ -1,5 +1,7 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text, ViewStyle } from "react-native";
 
+import { webPointer } from "@/utils/webStyles";
+
 export interface ButtonProps {
   title: string;
   onPress: () => void;
@@ -19,6 +21,7 @@ export function Button(props: ButtonProps): React.ReactElement {
       onPress={onPress}
       style={({ pressed }) => [
         styles.base,
+        webPointer,
         isDisabled && styles.disabled,
         pressed && !isDisabled && styles.pressed,
         style,

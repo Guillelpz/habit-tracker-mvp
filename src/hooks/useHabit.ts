@@ -44,6 +44,7 @@ export function useHabit(id: string | null | undefined): UseHabitResult {
       .maybeSingle();
 
     if (fetchError) {
+      console.error("[useHabit] fetch failed:", fetchError);
       setHabit(null);
       setError(fetchError);
       setIsLoading(false);

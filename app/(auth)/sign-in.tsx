@@ -3,13 +3,16 @@ import { useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
-  View,
 } from "react-native";
 
+import { webPointer } from "@/utils/webStyles";
+
 import { useAuth } from "@/hooks/useAuth";
+import { getErrorMessage } from "@/utils/errorMessage";
 
 export default function SignInScreen(): React.ReactElement {
   const { signIn } = useAuth();
@@ -33,14 +36,18 @@ export default function SignInScreen(): React.ReactElement {
     try {
       await signIn(email.trim(), password);
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Unable to sign in.");
+      setErrorMessage(getErrorMessage(error, "Unable to sign in."));
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <View style={styles.container}>
+    <ScrollView
+      contentContainerStyle={styles.scrollContent}
+      keyboardShouldPersistTaps="handled"
+      style={styles.scroll}
+    >
       <Text style={styles.title}>Sign in</Text>
 
       <TextInput
@@ -68,8 +75,8 @@ export default function SignInScreen(): React.ReactElement {
       <Pressable
         accessibilityRole="button"
         disabled={isSubmitDisabled}
-        onPress={handleSignIn}
-        style={[styles.button, isSubmitDisabled && styles.buttonDisabled]}
+        onPress={() => void handleSignIn()}
+        style={[styles.button, webPointer, isSubmitDisabled && styles.buttonDisabled]}
       >
         {isSubmitting ? (
           <ActivityIndicator color="#fff" />
@@ -81,16 +88,19 @@ export default function SignInScreen(): React.ReactElement {
       <Link href="/(auth)/sign-up" style={styles.link}>
         Don&apos;t have an account? Sign up
       </Link>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  scroll: {
     flex: 1,
+    backgroundColor: "#fff",
+  },
+  scrollContent: {
+    flexGrow: 1,
     justifyContent: "center",
     padding: 20,
-    backgroundColor: "#fff",
   },
   title: {
     fontSize: 28,

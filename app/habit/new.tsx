@@ -1,12 +1,13 @@
 import { router } from "expo-router";
 import { useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { ColorPicker } from "@/components/ColorPicker";
 import { FrequencyPicker } from "@/components/FrequencyPicker";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { useHabitForm } from "@/hooks/useHabitForm";
+import { getErrorMessage } from "@/utils/errorMessage";
 
 export default function NewHabitScreen(): React.ReactElement {
   const { values, errors, isSubmitting, setName, setColor, setFrequencyConfig, createHabit } =
@@ -24,8 +25,15 @@ export default function NewHabitScreen(): React.ReactElement {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>New habit</Text>
+    <ScrollView
+      contentContainerStyle={styles.scrollContent}
+      keyboardShouldPersistTaps="handled"
+      style={styles.scroll}
+    >
+      <View style={styles.header}>
+        <Text style={styles.title}>New habit</Text>
+        <Button onPress={() => router.replace("/")} title="Cancel" />
+      </View>
 
       <View style={styles.section}>
         <Text style={styles.label}>Name</Text>
@@ -46,6 +54,7 @@ export default function NewHabitScreen(): React.ReactElement {
       <View style={styles.section}>
         <Text style={styles.label}>Frequency</Text>
         <FrequencyPicker
+          frequencyType="weekly"
           onFrequencyChange={setFrequencyConfig}
           selectedFrequency={values.frequency_config}
         />
@@ -58,23 +67,33 @@ export default function NewHabitScreen(): React.ReactElement {
       <Button
         disabled={isSubmitting}
         isLoading={isSubmitting}
-        onPress={handleSubmit}
+        onPress={() => void handleSubmit()}
         title="Create habit"
       />
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  scroll: {
     flex: 1,
-    padding: 20,
     backgroundColor: "#fff",
+  },
+  scrollContent: {
+    flexGrow: 1,
+    padding: 20,
     gap: 16,
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
   },
   title: {
     fontSize: 28,
     fontWeight: "700",
+    flexShrink: 1,
   },
   section: {
     gap: 8,

@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import type { Habit } from "@/lib/types";
+import { webPointer } from "@/utils/webStyles";
 
 export interface HabitCardProps {
   habit: Habit;
@@ -14,7 +15,7 @@ export function HabitCard(props: HabitCardProps): React.ReactElement {
     <Pressable
       accessibilityRole="button"
       onPress={onPress}
-      style={({ pressed }) => [styles.container, pressed && styles.pressed]}
+      style={({ pressed }) => [styles.container, webPointer, pressed && styles.pressed]}
     >
       <View style={[styles.colorDot, { backgroundColor: habit.color }]} />
       <Text numberOfLines={1} style={styles.name}>

@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { ColorPicker } from "@/components/ColorPicker";
 import { FrequencyPicker } from "@/components/FrequencyPicker";
@@ -10,6 +10,8 @@ import { useHabit } from "@/hooks/useHabit";
 import { useHabitForm } from "@/hooks/useHabitForm";
 import { useHabits } from "@/hooks/useHabits";
 import type { FrequencyConfig, Habit } from "@/lib/types";
+import { normalizeFrequencyConfigForPersistence } from "@/utils/frequency";
+import { getErrorMessage } from "@/utils/errorMessage";
 
 interface EditHabitFormProps {
   habit: Habit;
@@ -18,11 +20,14 @@ interface EditHabitFormProps {
 function EditHabitForm(props: EditHabitFormProps): React.ReactElement {
   const { habit } = props;
   const { updateHabit } = useHabits();
-  const { values, errors, setName, setColor, setFrequencyConfig, validate } = useHabitForm({
-    name: habit.name,
-    color: habit.color,
-    frequency_config: habit.frequency_config,
-  });
+  const { values, errors, setName, setColor, setFrequencyConfig, validate } = useHabitForm(
+    {
+      name: habit.name,
+      color: habit.color,
+      frequency_config: habit.frequency_config,
+    },
+    { frequencyType: habit.frequency_type },
+  );
 
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -45,20 +50,24 @@ function EditHabitForm(props: EditHabitFormProps): React.ReactElement {
     try {
       await updateHabit(habit.id, {
         name: values.name,
-        color: values.color ?? "",
-        frequency_config: frequencyConfig,
+        color: (values.color ?? "").trim(),
+        frequency_config: normalizeFrequencyConfigForPersistence(frequencyConfig, habit.frequency_type),
       });
 
       router.replace(`/habit/${habit.id}`);
     } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : "Unable to save changes.");
+      setSubmitError(getErrorMessage(error, "Unable to save changes."));
     } finally {
       setIsSaving(false);
     }
   };
 
   return (
-    <View style={styles.container}>
+    <ScrollView
+      contentContainerStyle={styles.scrollContent}
+      keyboardShouldPersistTaps="handled"
+      style={styles.scroll}
+    >
       <View style={styles.header}>
         <Text style={styles.title}>Edit habit</Text>
         <Button onPress={() => router.back()} title="Cancel" />
@@ -77,15 +86,25 @@ function EditHabitForm(props: EditHabitFormProps): React.ReactElement {
 
       <View style={styles.section}>
         <Text style={styles.label}>Frequency</Text>
-        <FrequencyPicker onFrequencyChange={setFrequencyConfig} selectedFrequency={values.frequency_config} />
+        <FrequencyPicker
+          frequencyType={habit.frequency_type}
+          onFrequencyChange={setFrequencyConfig}
+          selectedFrequency={values.frequency_config}
+        />
         {errors.frequency ? <Text style={styles.errorText}>{errors.frequency}</Text> : null}
+        {errors.frequency_type ? <Text style={styles.errorText}>{errors.frequency_type}</Text> : null}
       </View>
 
       {errors.form ? <Text style={styles.errorText}>{errors.form}</Text> : null}
       {submitError ? <Text style={styles.errorText}>{submitError}</Text> : null}
 
-      <Button disabled={isSaving} isLoading={isSaving} onPress={handleSave} title="Save changes" />
-    </View>
+      <Button
+        disabled={isSaving}
+        isLoading={isSaving}
+        onPress={() => void handleSave()}
+        title="Save changes"
+      />
+    </ScrollView>
   );
 }
 
@@ -128,10 +147,13 @@ export default function EditHabitScreen(): React.ReactElement {
 }
 
 const styles = StyleSheet.create({
-  container: {
+  scroll: {
     flex: 1,
-    padding: 20,
     backgroundColor: "#fff",
+  },
+  scrollContent: {
+    flexGrow: 1,
+    padding: 20,
     gap: 16,
   },
   header: {
