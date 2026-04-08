@@ -24,10 +24,11 @@ export interface UseHabitFormResult {
   reset: () => void;
 }
 
+/** New weekly habits default to one weekday (Monday) — matches "Once a week" preset in `FREQUENCY_PRESETS`. */
 const DEFAULT_VALUES: HabitFormValues = {
   name: "",
   color: null,
-  frequency_config: null,
+  frequency_config: { weekdays: [1] },
 };
 
 export function useHabitForm(

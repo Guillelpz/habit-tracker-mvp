@@ -83,6 +83,7 @@ The first real user is the product creator themself. However, the product should
 
 ### Daily overview
 - As a user, I want to see my habits in a list.
+- As a user, I want to find a habit quickly when the list grows (e.g. filter by name and choose a simple sort order).
 - As a user, I want the app to emphasize the calendar/history view rather than only a checklist.
 
 ---
@@ -128,12 +129,12 @@ A practical MVP approach is:
 - ability to browse previous and next months
 
 ### Main app structure
-- habits list screen
+- habits list screen (including optional client-side search and sort to scale the list UX without changing the data model)
 - habit detail screen with calendar
 - create/edit habit flow
 - auth screens
 
-MVP v2 additions (week-level weekly habits and custom habit colors) are defined in §16.
+Week-level weekly habits and custom habit colors are specified in §16 and are **implemented** in the current codebase (see `PROJECT_STATE.md`, tasks F.1–F.11).
 
 ---
 
@@ -191,6 +192,7 @@ Not included initially:
 ### Main flow
 - After sign-in, users should land on their habits list
 - From the habit list, users should be able to open a habit detail view
+- The habits list may offer simple search and sort (client-side) to support longer lists without changing server contracts
 - The habit detail view should center on the calendar and completion history
 
 ---
@@ -203,6 +205,7 @@ Not included initially:
 
 ### 2. Habits home screen
 - list of active habits
+- optional search-by-name and sort (e.g. name, recently created) on the client
 - quick entry to create a new habit
 - each habit card should visually hint at its color
 
@@ -305,6 +308,8 @@ The implementation should avoid premature complexity and prefer explicit pattern
 ---
 
 ## 16. MVP v2 — Week-level weekly habits & custom colors
+
+**Implementation status:** Shipped in the current app (`PROJECT_STATE.md`: tasks F.1–F.11). The section below remains the product specification.
 
 ### 16.1 Scope (included)
 

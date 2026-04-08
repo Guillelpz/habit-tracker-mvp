@@ -1,5 +1,7 @@
 import { StyleSheet, Text, TextInput, View } from "react-native";
 
+import { webTextCursor } from "@/utils/webStyles";
+
 export interface InputProps {
   value: string;
   onChangeText: (value: string) => void;
@@ -17,7 +19,7 @@ export function Input(props: InputProps): React.ReactElement {
         onChangeText={onChangeText}
         placeholder={placeholder}
         secureTextEntry={secureTextEntry}
-        style={[styles.input, !!error && styles.inputError]}
+        style={[styles.input, !!error && styles.inputError, webTextCursor]}
         value={value}
       />
       {error ? <Text style={styles.errorText}>{error}</Text> : null}

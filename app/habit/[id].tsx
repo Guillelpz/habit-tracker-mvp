@@ -138,11 +138,32 @@ export default function HabitDetailScreen(): React.ReactElement {
         <Text style={styles.title} numberOfLines={2}>
           {habit.name}
         </Text>
-        <Button
-          onPress={() => router.push(`/habit/edit/${habit.id}`)}
-          style={styles.headerAction}
-          title="Edit"
-        />
+        <View style={styles.headerActions}>
+          <Button
+            onPress={() => router.push(`/habit/edit/${habit.id}`)}
+            style={styles.headerAction}
+            title="Edit"
+          />
+          <Pressable
+            accessibilityHint="Hides this habit from your active list"
+            accessibilityLabel="Archive habit"
+            accessibilityRole="button"
+            disabled={archiveBusy || toggleBusy}
+            onPress={handleArchiveHabit}
+            style={({ pressed }) => [
+              styles.archiveHeaderButton,
+              webPointer,
+              (archiveBusy || toggleBusy) && styles.archiveDisabled,
+              pressed && !archiveBusy && !toggleBusy && styles.archivePressed,
+            ]}
+          >
+            {archiveBusy ? (
+              <ActivityIndicator color="#b91c1c" size="small" />
+            ) : (
+              <Text style={styles.archiveHeaderLabel}>Archive</Text>
+            )}
+          </Pressable>
+        </View>
       </View>
 
       {completionsError ? (
@@ -199,26 +220,6 @@ export default function HabitDetailScreen(): React.ReactElement {
           <Text style={styles.bannerText}>{archiveError}</Text>
         </View>
       ) : null}
-
-      <Pressable
-        accessibilityHint="Hides this habit from your active list"
-        accessibilityLabel="Archive habit"
-        accessibilityRole="button"
-        disabled={archiveBusy || toggleBusy}
-        onPress={handleArchiveHabit}
-        style={({ pressed }) => [
-          styles.archivePressable,
-          webPointer,
-          (archiveBusy || toggleBusy) && styles.archiveDisabled,
-          pressed && !archiveBusy && !toggleBusy && styles.archivePressed,
-        ]}
-      >
-        {archiveBusy ? (
-          <ActivityIndicator color="#b91c1c" size="small" />
-        ) : (
-          <Text style={styles.archiveLabel}>Archive habit</Text>
-        )}
-      </Pressable>
     </ScrollView>
   );
 }
@@ -240,8 +241,26 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: 8,
   },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flexShrink: 0,
+  },
   headerAction: {
     flexShrink: 0,
+  },
+  archiveHeaderButton: {
+    minHeight: 44,
+    minWidth: 44,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 4,
+  },
+  archiveHeaderLabel: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#b91c1c",
   },
   center: {
     flex: 1,
@@ -305,23 +324,11 @@ const styles = StyleSheet.create({
     color: "#6b7280",
     fontSize: 14,
   },
-  archivePressable: {
-    alignSelf: "flex-start",
-    minHeight: 44,
-    justifyContent: "center",
-    paddingVertical: 8,
-    paddingHorizontal: 4,
-  },
   archivePressed: {
     opacity: 0.7,
   },
   archiveDisabled: {
     opacity: 0.6,
-  },
-  archiveLabel: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#b91c1c",
   },
 });
 

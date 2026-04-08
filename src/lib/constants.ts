@@ -34,6 +34,7 @@ export interface FrequencyPreset {
  * Used by FrequencyPicker.
  */
 export const FREQUENCY_PRESETS: FrequencyPreset[] = [
+  { key: "once_a_week", label: "Once a week", weekdays: [1] },
   { key: "every_day", label: "Every day", weekdays: [0, 1, 2, 3, 4, 5, 6] },
   { key: "weekdays", label: "Weekdays", weekdays: [1, 2, 3, 4, 5] },
   { key: "mon_wed_fri", label: "Mon/Wed/Fri", weekdays: [1, 3, 5] },

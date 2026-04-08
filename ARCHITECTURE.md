@@ -84,6 +84,7 @@ habit-tracker-mvp/
 │   │   └── constants.ts          # Colors, defaults, etc.
 │   ├── utils/                    # Pure helpers
 │   │   ├── date.ts               # Date handling (see Section 10)
+│   │   ├── habitList.ts          # Client-side filter/sort for habits home list
 │   │   ├── frequency.ts          # Frequency logic
 │   │   ├── colorContrast.ts      # Label contrast on habit-color fills (calendar cells)
 │   │   ├── errorMessage.ts       # User-facing error strings
@@ -185,7 +186,8 @@ If keeping dependencies minimal for MVP, use `useState` + `useEffect` with expli
 
 1. **Fetch in screens or hooks**: Each screen/hook fetches what it needs. No global data store.
 2. **Single source of truth**: Supabase is the source. Client caches for UX, not as primary store.
-3. **Optimistic updates (optional)**: For completion toggle, consider optimistic UI; revert on error.
+3. **Habits list (home)**: `useHabits()` continues to return the full active list from Supabase. **Search and sort** (name, created date) are applied in the UI layer or small pure helpers—no extra queries or list-order columns unless product adds manual reorder later.
+4. **Optimistic updates (optional)**: For completion toggle, consider optimistic UI; revert on error.
 
 ### Hook Conventions
 

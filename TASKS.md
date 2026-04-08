@@ -4,6 +4,8 @@ This document breaks the project into small, ordered tasks suitable for AI-assis
 
 **Reference documents**: PRD.md, ARCHITECTURE.md
 
+**Implementation status:** **`PROJECT_STATE.md` is the source of truth** for what is completed. Acceptance criteria checkboxes below are not auto-synced; use them as historical intent, not live status.
+
 ---
 
 ## Phase 1: Project Setup
@@ -953,6 +955,90 @@ F.5 → F.7
 
 ---
 
+## Phase 9: Habits list — search and sort
+
+Small client-only improvements to the home screen so users can find and order habits as the list grows. **Scope**: filter by name (substring, case-insensitive), sort by **name (A–Z)** or **created (newest first)**. **Out of scope**: manual drag-and-drop reorder, persisting sort/search across app restarts (session-only state is enough unless a later task adds persistence), server-side search, and any change to `habits` schema or `useHabits` query shape.
+
+### Task G.1 — Pure helpers: filter and sort habits for the list
+
+**Goal**: Add testable pure functions that filter habits by name substring and sort by name or `created_at`, without touching Supabase.
+
+**Files likely involved**:
+- `src/utils/habitList.ts` (new)
+- `src/lib/types.ts` (only if a tiny shared type for sort mode is preferred)
+
+**Dependencies**: None (builds on existing `Habit` type and list usage)
+
+**Acceptance criteria**:
+- [ ] `filterHabitsByNameQuery(habits, query)` returns all habits when `query` is empty/whitespace; otherwise case-insensitive substring match on `habit.name` (trimmed query)
+- [ ] `sortHabitsForList(habits, sortMode)` supports at least `'name_asc'` and `'created_desc'` (`created_at` newer first; stable tie-breaker by `id` or `name` if needed)
+- [ ] Functions are pure, use `Habit` from `lib/types`, no React imports
+- [ ] `npx tsc --noEmit` passes
+
+---
+
+### Task G.2 — Home screen: sort control and sorted list
+
+**Goal**: Let the user choose name vs newest-first order; apply `sortHabitsForList` to the loaded habits (full list). Task G.3 will apply **filter then sort** when search is added.
+
+**Files likely involved**:
+- `app/index.tsx`
+- `src/utils/habitList.ts`
+
+**Dependencies**: Task G.1
+
+**Acceptance criteria**:
+- [ ] Visible control for sort mode (e.g. segmented control or two options) with accessible labels
+- [ ] FlatList renders habits in the selected order (session state only; default e.g. name A–Z)
+- [ ] No change to `useHabits` API or Supabase queries
+- [ ] Works on web and Android (touch targets, `webPointer` on pressables where applicable)
+
+---
+
+### Task G.3 — Home screen: search field and combined filter + sort
+
+**Goal**: Add a search field that filters the list by name; combine with sort from Task G.2 using **filter then sort** (filter the loaded habits, then sort the result).
+
+**Files likely involved**:
+- `app/index.tsx`
+- `src/components/ui/Input.tsx` (reuse if suitable)
+- `src/utils/habitList.ts`
+
+**Dependencies**: Task G.2
+
+**Acceptance criteria**:
+- [ ] Text input filters habits via `filterHabitsByNameQuery`; updating text updates the list
+- [ ] Clear control or empty query shows full list (subject to sort)
+- [ ] Loading and error states from `useHabits` unchanged; search/sort apply only to successful `habits` data
+- [ ] When no habits match the query, show a short empty message (distinct from “no habits yet” if applicable)
+
+---
+
+### Task G.4 — Habits list search/sort: polish and regression
+
+**Goal**: Tighten UX and verify no regressions.
+
+**Files likely involved**:
+- `app/index.tsx`
+- `src/utils/webStyles.ts` (only if `webTextCursor` or similar needed for search input)
+
+**Dependencies**: Task G.3
+
+**Acceptance criteria**:
+- [ ] Search input uses existing input styling patterns; keyboard dismiss behavior acceptable on mobile (`keyboardShouldPersistTaps` already on list parent if needed)
+- [ ] `npx tsc --noEmit` and `npx expo export --platform web` succeed
+- [ ] Manual spot-check: many habits, empty query, no matches, switch sort with query applied
+
+---
+
+### Phase 9 dependency summary
+
+```
+G.1 → G.2 → G.3 → G.4
+```
+
+---
+
 ## Task Dependency Summary
 
 ```
@@ -983,6 +1069,7 @@ F.5 → F.7
 7.4 ← 7.3
 8.1 ← 3.1, 4.8
 8.2, 8.3 ← all
+G.1 → G.2 → G.3 → G.4
 ```
 
 ---

@@ -53,6 +53,10 @@ export default function NewHabitScreen(): React.ReactElement {
 
       <View style={styles.section}>
         <Text style={styles.label}>Frequency</Text>
+        <Text style={styles.hint}>
+          Habits repeat on chosen days each week. New habits default to once on Monday — change the
+          preset or tap a day below.
+        </Text>
         <FrequencyPicker
           frequencyType="weekly"
           onFrequencyChange={setFrequencyConfig}
@@ -102,6 +106,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
     color: "#111827",
+  },
+  hint: {
+    fontSize: 13,
+    color: "#6b7280",
+    lineHeight: 18,
   },
   errorText: {
     color: "#b91c1c",

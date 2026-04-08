@@ -52,7 +52,16 @@
 - Task F.9: `src/components/HabitCalendar.tsx` — `isWeekCompletionGranularity`: week rows are a single `Pressable` (day cells are `View` only); `onToggleCompletion(weekStartStr)`; completion paint via `isDateInCompletedWeek`; row tappable only if some day in the week is expected; day-mode branch unchanged; month nav still drives props → rerender
 - Task F.10: `src/components/HabitYearOverview.tsx` — week mode: `isDateInCompletedWeek` for completed cells; day mode unchanged; `src/hooks/useYearCompletions.ts` optional `frequencyConfig`, week mode widens fetch `start` to `getWeekStartDateString(\`${year}-01-01\`)` so prior-year week-start rows load; `app/habit/[id].tsx` passes `habit?.frequency_config`
 - Task F.11: Regression + web spot-check — `npx tsc --noEmit` and `npx expo export --platform web` succeed; code paths for legacy habits (no `completion_granularity` = day mode), list/card colors, and completion toggles reviewed; small web fixes: `webTextCursor` in `src/utils/webStyles.ts` + ColorPicker hex `TextInput`; `webPointer` on HabitCalendar prev/next month nav (aligned with Task 8.3 patterns)
+- Task G.1: `src/utils/habitList.ts` — `filterHabitsByNameQuery` (empty/trimmed query → all habits; else case-insensitive substring on `name`); `sortHabitsForList` with `name_asc` / `created_desc` (newer first); stable tie-break via `id`; exported `HabitListSortMode`; pure functions, `Habit` from `lib/types`; `npx tsc --noEmit` passes
+- Task G.2: `app/index.tsx` — session `sortMode` state (default `name_asc`); toolbar with **Name (A–Z)** / **Newest first** `Pressable`s (`accessibilityLabel`, `accessibilityState.selected`, `minHeight` 44, `webPointer`); `useMemo` + `sortHabitsForList` → `FlatList` `data`; `useHabits` unchanged; sort UI only when habits exist
+- Task G.3: `app/index.tsx` — `searchQuery` state; `Input` (“Search by name”); **Clear** when query non-empty; `useMemo`: `filterHabitsByNameQuery` then `sortHabitsForList`; loading/error branches unchanged; `FlatList` `ListEmptyComponent` “No matching habits…” when filter yields none; `keyboardShouldPersistTaps="handled"` on list
+- Task G.4: `src/components/ui/Input.tsx` — `webTextCursor` on `TextInput` (web I-beam, matches ColorPicker / Task 8.3); `app/index.tsx` — `keyboardDismissMode="on-drag"` on habits `FlatList`; `flexGrow: 1` on `contentContainerStyle` when `listHabits` empty (clearer “no matches” layout); `npx tsc --noEmit` + `npx expo export --platform web` succeed
+
+## Next iteration (upcoming)
+
+- **Phase 9 (G.1–G.4)** — completed: client-side search + sort on habits home (`TASKS.md`).
+- Pull next priorities from `BACKLOG.md` into `TASKS.md` when starting new work.
 
 ## Remaining
-- **`TASKS.md`**: All planned tasks are done (Phases 1–8 through Task 8.3, plus Feature F.1–F.11). There is no “next” task in that file until new tasks are added.
-- Product backlog: `BACKLOG.md` (deferred improvements and future ideas; not the same as `TASKS.md`)
+
+- Product backlog (unscheduled work): `BACKLOG.md`
