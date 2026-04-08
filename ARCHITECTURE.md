@@ -85,6 +85,7 @@ habit-tracker-mvp/
 │   ├── utils/                    # Pure helpers
 │   │   ├── date.ts               # Date handling (see Section 10)
 │   │   ├── frequency.ts          # Frequency logic
+│   │   ├── colorContrast.ts      # Label contrast on habit-color fills (calendar cells)
 │   │   ├── errorMessage.ts       # User-facing error strings
 │   │   └── webStyles.ts          # Web-only style helpers (e.g. cursor)
 │   └── validation/               # Form validation schemas
@@ -190,8 +191,8 @@ If keeping dependencies minimal for MVP, use `useState` + `useEffect` with expli
 
 - `useHabits()`: Fetch active habits for the current user. Returns `{ habits, isLoading, error, refetch }`.
 - `useHabit(id)`: Fetch a single habit by ID. Returns `{ habit, isLoading, error, refetch }`.
-- `useCompletions(habitId, year, month)`: Fetch completion dates for the **visible calendar grid** for that month (same date bounds as `getMonthGridRange` / `getDaysInMonth`, not the civil month only). Returns `{ completions, isLoading, error, refetch, toggleCompletion }`.
-- `useYearCompletions(habitId, year)`: Fetch completions for a Gregorian year (habit detail year overview).
+- `useCompletions(habitId, year, month, frequencyConfig?)`: Optional `frequency_config` (from the habit) so **toggle** uses per-day vs week-start `completed_on` (see §8 / §11). Fetch uses `getMonthGridRange` / grid bounds. Returns `{ completions, isLoading, error, refetch, toggleCompletion }`.
+- `useYearCompletions(habitId, year, frequencyConfig?)`: Optional `frequency_config`; for week granularity, fetch range includes the week-start on or before Jan 1 so the year overview matches the calendar.
 - `useAuth()`: Auth state and helpers (`signIn`, `signOut`, `signUp`, `user`, `session`, `isLoading`).
 
 ### Mutation Hooks

@@ -34,14 +34,14 @@ export default function HabitDetailScreen(): React.ReactElement {
     error: completionsError,
     refetch: refetchCompletions,
     toggleCompletion,
-  } = useCompletions(habitId, calendarMonth.year, calendarMonth.month);
+  } = useCompletions(habitId, calendarMonth.year, calendarMonth.month, habit?.frequency_config);
 
   const {
     completions: yearCompletions,
     isLoading: yearCompletionsLoading,
     error: yearCompletionsError,
     refetch: refetchYearCompletions,
-  } = useYearCompletions(habitId, overviewYear);
+  } = useYearCompletions(habitId, overviewYear, habit?.frequency_config);
 
   const [toggleBusy, setToggleBusy] = useState(false);
   const [toggleError, setToggleError] = useState<string | null>(null);

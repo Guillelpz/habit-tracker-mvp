@@ -31,7 +31,7 @@
 - Task 6.1: `src/components/HabitCalendar.tsx` (month grid calendar component)
 - Task 6.2: `src/components/HabitCalendar.tsx` (month navigation header + controls)
 - Task 6.3: `app/habit/[id].tsx` (habit detail shows calendar with local month state)
-- Task 7.1: `src/hooks/useCompletions.ts` (fetch completion dates for a habit/month via Supabase, `getMonthRange`, explicit `user_id`)
+- Task 7.1: `src/hooks/useCompletions.ts` (fetch completion dates for a habit/month via Supabase, `getMonthGridRange`, explicit `user_id`)
 - Task 7.2: `src/hooks/useCompletions.ts` (`toggleCompletion`: insert/delete by `habit_id` + `completed_on`, `user_id` from session, `parseDateString`, unique-violation refetch, then `refetch`)
 - Task 7.3: `app/habit/[id].tsx` + `src/components/HabitCalendar.tsx` (`useCompletions` + `toggleCompletion` wiring, fetch/retry/error UI, toggle busy state, completed cells use `habit.color` + label contrast helper)
 - Task 7.4: `src/components/HabitCalendar.tsx` (completed cells: `habit.color` fill + WCAG-style label contrast; neutral expected-not-done vs muted in-month off-days; removed unused `cellCompleted`)
@@ -48,7 +48,11 @@
 - Task F.5: `src/components/ColorPicker.tsx` — preset swatches + **Custom** hex `TextInput` (max 7 chars), live preview swatch, `normalizeHexColor` aligned with validation; `onColorSelect` when hex is valid (normalized `#rrggbb`); preset selection hidden while custom field has text; `constants.ts` unchanged
 - Task F.6: `src/components/FrequencyPicker.tsx` — optional `frequencyType` (`weekly`|`custom`, default `weekly`); **Completion** row **By day** / **By week** (`completion_granularity` omitted vs `'week'`); custom habits hide the row; `applyWeekdays` preserves week granularity for weekly habits; `app/habit/edit/[id].tsx` passes `frequencyType={habit.frequency_type}`
 - Task F.7: `normalizeFrequencyConfigForPersistence` in `src/utils/frequency.ts` — weekdays normalized; weekly saves `completion_granularity: 'week'` only in week mode; custom strips granularity; `useHabitForm` `createHabit` uses it for insert; edit `handleSave` uses it + trimmed color; `app/habit/new.tsx` sets `frequencyType="weekly"` on `FrequencyPicker`; edit still seeds from `habit.color` / `habit.frequency_config` (legacy habits = day mode when field absent)
+- Task F.8: `src/hooks/useCompletions.ts` — optional `frequencyConfig`; week mode: `toggleCompletion` insert/delete uses `getWeekCompletionStartDateString(dateStr)` as `completed_on`; day mode unchanged; fetch still `getMonthGridRange` + `gte`/`lte` on `completed_on`; `app/habit/[id].tsx` passes `habit?.frequency_config`
+- Task F.9: `src/components/HabitCalendar.tsx` — `isWeekCompletionGranularity`: week rows are a single `Pressable` (day cells are `View` only); `onToggleCompletion(weekStartStr)`; completion paint via `isDateInCompletedWeek`; row tappable only if some day in the week is expected; day-mode branch unchanged; month nav still drives props → rerender
+- Task F.10: `src/components/HabitYearOverview.tsx` — week mode: `isDateInCompletedWeek` for completed cells; day mode unchanged; `src/hooks/useYearCompletions.ts` optional `frequencyConfig`, week mode widens fetch `start` to `getWeekStartDateString(\`${year}-01-01\`)` so prior-year week-start rows load; `app/habit/[id].tsx` passes `habit?.frequency_config`
+- Task F.11: Regression + web spot-check — `npx tsc --noEmit` and `npx expo export --platform web` succeed; code paths for legacy habits (no `completion_granularity` = day mode), list/card colors, and completion toggles reviewed; small web fixes: `webTextCursor` in `src/utils/webStyles.ts` + ColorPicker hex `TextInput`; `webPointer` on HabitCalendar prev/next month nav (aligned with Task 8.3 patterns)
 
 ## Remaining
-- Feature (PRD §16): Task F.8 onward in `TASKS.md` (`Feature: Weekly habit and Custom colors`)
+- **`TASKS.md`**: All planned tasks are done (Phases 1–8 through Task 8.3, plus Feature F.1–F.11). There is no “next” task in that file until new tasks are added.
 - Product backlog: `BACKLOG.md` (deferred improvements and future ideas; not the same as `TASKS.md`)

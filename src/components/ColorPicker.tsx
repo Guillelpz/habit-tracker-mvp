@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { HABIT_COLORS } from "@/lib/constants";
 import { normalizeHabitColorInput } from "@/validation/habit";
-import { webPointer } from "@/utils/webStyles";
+import { webPointer, webTextCursor } from "@/utils/webStyles";
 
 export interface ColorPickerProps {
   selectedColor: string | null;
@@ -83,7 +83,7 @@ export function ColorPicker(props: ColorPickerProps): ReactElement {
             maxLength={7}
             onChangeText={handleCustomChange}
             placeholder="#RRGGBB or #RGB"
-            style={styles.hexInput}
+            style={[styles.hexInput, webTextCursor]}
             value={customDraft}
           />
           <View

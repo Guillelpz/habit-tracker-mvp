@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { useAuth } from "@/hooks/useAuth";
+import type { FrequencyConfig } from "@/lib/types";
 import { supabase } from "@/lib/supabase";
-import { getYearRange } from "@/utils/date";
+import { getWeekStartDateString, getYearRange } from "@/utils/date";
+import { isWeekCompletionGranularity } from "@/utils/frequency";
 
 export interface UseYearCompletionsResult {
   completions: string[];
@@ -13,10 +15,14 @@ export interface UseYearCompletionsResult {
 
 /**
  * All completion dates (YYYY-MM-DD) for a habit within a calendar year (read-only fetch).
+ * For week-level completion habits, the query range includes `completed_on` rows that
+ * may be **before** Jan 1 (canonical week-start for the week containing Jan 1), matching
+ * month-grid semantics for `HabitYearOverview`, `isDateInCompletedWeek`.
  */
 export function useYearCompletions(
   habitId: string | null | undefined,
-  year: number
+  year: number,
+  frequencyConfig?: FrequencyConfig | null,
 ): UseYearCompletionsResult {
   const { user, isLoading: isAuthLoading } = useAuth();
   const [completions, setCompletions] = useState<string[]>([]);
@@ -43,6 +49,9 @@ export function useYearCompletions(
     let end: string;
     try {
       ({ start, end } = getYearRange(year));
+      if (frequencyConfig != null && isWeekCompletionGranularity(frequencyConfig)) {
+        start = getWeekStartDateString(`${year}-01-01`);
+      }
     } catch (e) {
       setCompletions([]);
       setIsLoading(false);
@@ -76,7 +85,7 @@ export function useYearCompletions(
 
     setCompletions(dates);
     setIsLoading(false);
-  }, [habitId, user, year]);
+  }, [frequencyConfig, habitId, user, year]);
 
   useEffect(() => {
     if (isAuthLoading) {

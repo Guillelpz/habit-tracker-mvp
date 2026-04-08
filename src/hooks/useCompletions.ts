@@ -1,8 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { useAuth } from "@/hooks/useAuth";
+import type { FrequencyConfig } from "@/lib/types";
 import { supabase } from "@/lib/supabase";
 import { getMonthGridRange, parseDateString } from "@/utils/date";
+import {
+  getWeekCompletionStartDateString,
+  isWeekCompletionGranularity,
+} from "@/utils/frequency";
 
 export interface UseCompletionsResult {
   completions: string[];
@@ -26,11 +31,16 @@ function isPostgresUniqueViolation(error: unknown): boolean {
  * (Sunday-first), including leading/trailing days from adjacent months — same bounds as
  * `HabitCalendar` / `getDaysInMonth`.
  * `month` uses JavaScript indexing: 0 = January, 11 = December.
+ *
+ * When `frequency_config.completion_granularity === 'week'`, `toggleCompletion` stores
+ * `completed_on` as the canonical week-start `YYYY-MM-DD` for the tapped week; fetches still
+ * use this grid range so overlapping week rows (including week-starts on leading days) load.
  */
 export function useCompletions(
   habitId: string | null | undefined,
   year: number,
-  month: number
+  month: number,
+  frequencyConfig?: FrequencyConfig | null,
 ): UseCompletionsResult {
   const { user, isLoading: isAuthLoading } = useAuth();
   const [completions, setCompletions] = useState<string[]>([]);
@@ -121,12 +131,17 @@ export function useCompletions(
         throw new Error("Invalid date. Expected YYYY-MM-DD.");
       }
 
+      const storageKey =
+        frequencyConfig != null && isWeekCompletionGranularity(frequencyConfig)
+          ? getWeekCompletionStartDateString(dateStr)
+          : dateStr;
+
       const { data: existing, error: selectError } = await supabase
         .from("habit_completions")
         .select("id")
         .eq("habit_id", targetId)
         .eq("user_id", user.id)
-        .eq("completed_on", dateStr)
+        .eq("completed_on", storageKey)
         .maybeSingle();
 
       if (selectError) {
@@ -149,7 +164,7 @@ export function useCompletions(
         const { error: insertError } = await supabase.from("habit_completions").insert({
           habit_id: targetId,
           user_id: user.id,
-          completed_on: dateStr,
+          completed_on: storageKey,
         });
 
         if (insertError) {
@@ -164,7 +179,7 @@ export function useCompletions(
 
       await fetchCompletions();
     },
-    [fetchCompletions, habitId, user]
+    [fetchCompletions, frequencyConfig, habitId, user]
   );
 
   return {

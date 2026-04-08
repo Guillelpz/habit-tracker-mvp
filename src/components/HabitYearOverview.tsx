@@ -1,12 +1,12 @@
 import { memo, useMemo } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 
-import { webPointer } from "@/utils/webStyles";
-
 import { Button } from "@/components/ui/Button";
 import type { Habit } from "@/lib/types";
+import { completedLabelColor } from "@/utils/colorContrast";
 import { getDaysInMonth, toDateString } from "@/utils/date";
-import { isExpectedDay } from "@/utils/frequency";
+import { isDateInCompletedWeek, isExpectedDay, isWeekCompletionGranularity } from "@/utils/frequency";
+import { webPointer } from "@/utils/webStyles";
 
 export interface HabitYearOverviewProps {
   habit: Habit;
@@ -16,47 +16,6 @@ export interface HabitYearOverviewProps {
   isLoading?: boolean;
   error?: Error | null;
   onRetry?: () => void;
-}
-
-function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
-  const h = hex.trim().replace("#", "");
-  if (h.length !== 6) {
-    return null;
-  }
-  const r = Number.parseInt(h.slice(0, 2), 16);
-  const g = Number.parseInt(h.slice(2, 4), 16);
-  const b = Number.parseInt(h.slice(4, 6), 16);
-  if (Number.isNaN(r) || Number.isNaN(g) || Number.isNaN(b)) {
-    return null;
-  }
-  return { r, g, b };
-}
-
-function relativeLuminance(r: number, g: number, b: number): number {
-  const linear = [r, g, b].map((c) => {
-    const s = c / 255;
-    return s <= 0.04045 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
-  });
-  return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
-}
-
-function contrastRatio(lumBg: number, lumFg: number): number {
-  const lighter = Math.max(lumBg, lumFg);
-  const darker = Math.min(lumBg, lumFg);
-  return (lighter + 0.05) / (darker + 0.05);
-}
-
-function completedLabelColor(backgroundHex: string): string {
-  const rgb = hexToRgb(backgroundHex);
-  if (!rgb) {
-    return "#ffffff";
-  }
-  const Lbg = relativeLuminance(rgb.r, rgb.g, rgb.b);
-  const Lwhite = relativeLuminance(255, 255, 255);
-  const Lblack = relativeLuminance(17, 24, 39);
-  const whiteOnBg = contrastRatio(Lbg, Lwhite);
-  const blackOnBg = contrastRatio(Lbg, Lblack);
-  return whiteOnBg >= blackOnBg ? "#ffffff" : "#111827";
 }
 
 function chunk<T>(items: T[], size: number): T[][] {
@@ -82,6 +41,7 @@ export const HabitYearOverview = memo(function HabitYearOverview({
   onRetry,
 }: HabitYearOverviewProps): React.ReactElement {
   const completionSet = useMemo<Set<string>>(() => new Set(completions), [completions]);
+  const weekMode = isWeekCompletionGranularity(habit.frequency_config);
 
   const months = useMemo(() => {
     return Array.from({ length: 12 }, (_, month) => {
@@ -161,7 +121,9 @@ export const HabitYearOverview = memo(function HabitYearOverview({
                   {week.map((date) => {
                     const dateStr = toDateString(date);
                     const inMonth = date.getFullYear() === year && date.getMonth() === month;
-                    const isCompleted = completionSet.has(dateStr);
+                    const isCompleted = weekMode
+                      ? isDateInCompletedWeek(dateStr, completionSet)
+                      : completionSet.has(dateStr);
                     const isExpected = inMonth && isExpectedDay(dateStr, habit.frequency_config);
                     const isMutedInMonth = inMonth && !isExpected;
 

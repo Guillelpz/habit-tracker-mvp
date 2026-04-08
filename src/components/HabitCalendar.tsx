@@ -3,7 +3,12 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import type { Habit } from "@/lib/types";
 import { getDaysInMonth, toDateString } from "@/utils/date";
-import { isExpectedDay } from "@/utils/frequency";
+import { completedLabelColor } from "@/utils/colorContrast";
+import {
+  isDateInCompletedWeek,
+  isExpectedDay,
+  isWeekCompletionGranularity,
+} from "@/utils/frequency";
 import { webPointer } from "@/utils/webStyles";
 
 export interface HabitCalendarProps {
@@ -15,49 +20,6 @@ export interface HabitCalendarProps {
   toggleDisabled?: boolean;
   onToggleCompletion: (dateStr: string) => void;
   onMonthChange: (year: number, month: number) => void;
-}
-
-function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
-  const h = hex.trim().replace("#", "");
-  if (h.length !== 6) {
-    return null;
-  }
-  const r = Number.parseInt(h.slice(0, 2), 16);
-  const g = Number.parseInt(h.slice(2, 4), 16);
-  const b = Number.parseInt(h.slice(4, 6), 16);
-  if (Number.isNaN(r) || Number.isNaN(g) || Number.isNaN(b)) {
-    return null;
-  }
-  return { r, g, b };
-}
-
-/** WCAG relative luminance (sRGB), 0–1. */
-function relativeLuminance(r: number, g: number, b: number): number {
-  const linear = [r, g, b].map((c) => {
-    const s = c / 255;
-    return s <= 0.04045 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
-  });
-  return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
-}
-
-function contrastRatio(lumBg: number, lumFg: number): number {
-  const lighter = Math.max(lumBg, lumFg);
-  const darker = Math.min(lumBg, lumFg);
-  return (lighter + 0.05) / (darker + 0.05);
-}
-
-/** Picks #fff or #111827 for maximum contrast on a solid hex background. */
-function completedLabelColor(backgroundHex: string): string {
-  const rgb = hexToRgb(backgroundHex);
-  if (!rgb) {
-    return "#ffffff";
-  }
-  const Lbg = relativeLuminance(rgb.r, rgb.g, rgb.b);
-  const Lwhite = relativeLuminance(255, 255, 255);
-  const Lblack = relativeLuminance(17, 24, 39); // #111827
-  const whiteOnBg = contrastRatio(Lbg, Lwhite);
-  const blackOnBg = contrastRatio(Lbg, Lblack);
-  return whiteOnBg >= blackOnBg ? "#ffffff" : "#111827";
 }
 
 function chunk<T>(items: T[], size: number): T[][] {
@@ -98,6 +60,8 @@ export const HabitCalendar = memo(function HabitCalendar({
 
   const weekdayLabels = ["S", "M", "T", "W", "T", "F", "S"];
 
+  const weekMode = isWeekCompletionGranularity(habit.frequency_config);
+
   return (
     <View style={styles.container}>
       <View style={styles.monthHeader}>
@@ -105,7 +69,7 @@ export const HabitCalendar = memo(function HabitCalendar({
           accessibilityRole="button"
           accessibilityLabel="Previous month"
           onPress={() => onMonthChange(prevYear, prevMonth)}
-          style={({ pressed }) => [styles.navButton, pressed && styles.pressed]}
+          style={({ pressed }) => [styles.navButton, webPointer, pressed && styles.pressed]}
         >
           <Text style={styles.navButtonText}>{"<"}</Text>
         </Pressable>
@@ -116,7 +80,7 @@ export const HabitCalendar = memo(function HabitCalendar({
           accessibilityRole="button"
           accessibilityLabel="Next month"
           onPress={() => onMonthChange(nextYear, nextMonth)}
-          style={({ pressed }) => [styles.navButton, pressed && styles.pressed]}
+          style={({ pressed }) => [styles.navButton, webPointer, pressed && styles.pressed]}
         >
           <Text style={styles.navButtonText}>{">"}</Text>
         </Pressable>
@@ -131,51 +95,114 @@ export const HabitCalendar = memo(function HabitCalendar({
       </View>
 
       <View style={styles.grid}>
-        {weeks.map((week, weekIndex) => (
-          <View key={`week-${weekIndex}`} style={styles.weekRow}>
-            {week.map((date) => {
-              const dateStr = toDateString(date);
-              const isInMonth = date.getFullYear() === year && date.getMonth() === month;
-              const isCompleted = completionSet.has(dateStr);
-              const isExpected = isInMonth && isExpectedDay(dateStr, habit.frequency_config);
-              const isTappable = isExpected && !toggleDisabled;
-              const isMutedInMonthDay = isInMonth && !isExpected;
+        {weeks.map((week, weekIndex) => {
+          if (weekMode) {
+            const weekStartStr = toDateString(week[0]);
+            const weekHasExpected = week.some((d) =>
+              isExpectedDay(toDateString(d), habit.frequency_config),
+            );
+            const weekCompleted = isDateInCompletedWeek(weekStartStr, completionSet);
+            const isTappable = weekHasExpected && !toggleDisabled;
 
-              return (
-                <Pressable
-                  key={dateStr}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Day ${date.getDate()}`}
-                  disabled={!isTappable}
-                  onPress={() => onToggleCompletion(dateStr)}
-                  style={({ pressed }) => [
-                    styles.cell,
-                    isTappable && webPointer,
-                    !isInMonth && styles.cellOutsideMonth,
-                    isMutedInMonthDay && styles.cellMutedInMonth,
-                    isExpected && !isCompleted && styles.cellExpectedNeutral,
-                    isCompleted && {
-                      backgroundColor: habit.color,
-                      borderColor: habit.color,
-                    },
-                    pressed && isTappable && styles.pressed,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.cellText,
-                      !isInMonth && styles.cellTextOutsideMonth,
-                      isMutedInMonthDay && styles.cellTextMutedInMonth,
-                      isCompleted && { color: completedLabelColor(habit.color) },
+            return (
+              <Pressable
+                key={`week-${weekIndex}`}
+                accessibilityHint={
+                  weekCompleted ? "Removes completion for this week" : "Marks this week complete"
+                }
+                accessibilityLabel={`Week starting ${weekStartStr}`}
+                accessibilityRole="button"
+                disabled={!isTappable}
+                onPress={() => onToggleCompletion(weekStartStr)}
+                style={({ pressed }) => [
+                  styles.weekRow,
+                  isTappable && webPointer,
+                  pressed && isTappable && styles.pressed,
+                ]}
+              >
+                {week.map((date) => {
+                  const dateStr = toDateString(date);
+                  const isInMonth = date.getFullYear() === year && date.getMonth() === month;
+                  const isExpected = isInMonth && isExpectedDay(dateStr, habit.frequency_config);
+                  const isMutedInMonthDay = isInMonth && !isExpected;
+
+                  return (
+                    <View
+                      key={dateStr}
+                      style={[
+                        styles.cell,
+                        !isInMonth && styles.cellOutsideMonth,
+                        isMutedInMonthDay && styles.cellMutedInMonth,
+                        isExpected && !weekCompleted && styles.cellExpectedNeutral,
+                        weekCompleted && {
+                          backgroundColor: habit.color,
+                          borderColor: habit.color,
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.cellText,
+                          !isInMonth && styles.cellTextOutsideMonth,
+                          isMutedInMonthDay && styles.cellTextMutedInMonth,
+                          weekCompleted && { color: completedLabelColor(habit.color) },
+                        ]}
+                      >
+                        {date.getDate()}
+                      </Text>
+                    </View>
+                  );
+                })}
+              </Pressable>
+            );
+          }
+
+          return (
+            <View key={`week-${weekIndex}`} style={styles.weekRow}>
+              {week.map((date) => {
+                const dateStr = toDateString(date);
+                const isInMonth = date.getFullYear() === year && date.getMonth() === month;
+                const isCompleted = completionSet.has(dateStr);
+                const isExpected = isInMonth && isExpectedDay(dateStr, habit.frequency_config);
+                const isTappable = isExpected && !toggleDisabled;
+                const isMutedInMonthDay = isInMonth && !isExpected;
+
+                return (
+                  <Pressable
+                    key={dateStr}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Day ${date.getDate()}`}
+                    disabled={!isTappable}
+                    onPress={() => onToggleCompletion(dateStr)}
+                    style={({ pressed }) => [
+                      styles.cell,
+                      isTappable && webPointer,
+                      !isInMonth && styles.cellOutsideMonth,
+                      isMutedInMonthDay && styles.cellMutedInMonth,
+                      isExpected && !isCompleted && styles.cellExpectedNeutral,
+                      isCompleted && {
+                        backgroundColor: habit.color,
+                        borderColor: habit.color,
+                      },
+                      pressed && isTappable && styles.pressed,
                     ]}
                   >
-                    {date.getDate()}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        ))}
+                    <Text
+                      style={[
+                        styles.cellText,
+                        !isInMonth && styles.cellTextOutsideMonth,
+                        isMutedInMonthDay && styles.cellTextMutedInMonth,
+                        isCompleted && { color: completedLabelColor(habit.color) },
+                      ]}
+                    >
+                      {date.getDate()}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          );
+        })}
       </View>
     </View>
   );
