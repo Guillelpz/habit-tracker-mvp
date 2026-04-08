@@ -56,11 +56,18 @@
 - Task G.2: `app/index.tsx` — session `sortMode` state (default `name_asc`); toolbar with **Name (A–Z)** / **Newest first** `Pressable`s (`accessibilityLabel`, `accessibilityState.selected`, `minHeight` 44, `webPointer`); `useMemo` + `sortHabitsForList` → `FlatList` `data`; `useHabits` unchanged; sort UI only when habits exist
 - Task G.3: `app/index.tsx` — `searchQuery` state; `Input` (“Search by name”); **Clear** when query non-empty; `useMemo`: `filterHabitsByNameQuery` then `sortHabitsForList`; loading/error branches unchanged; `FlatList` `ListEmptyComponent` “No matching habits…” when filter yields none; `keyboardShouldPersistTaps="handled"` on list
 - Task G.4: `src/components/ui/Input.tsx` — `webTextCursor` on `TextInput` (web I-beam, matches ColorPicker / Task 8.3); `app/index.tsx` — `keyboardDismissMode="on-drag"` on habits `FlatList`; `flexGrow: 1` on `contentContainerStyle` when `listHabits` empty (clearer “no matches” layout); `npx tsc --noEmit` + `npx expo export --platform web` succeed
+- Phase 9 (G.1–G.4): client-side search + sort on habits home (`TASKS.md`)
+- Task H.1: `src/utils/todayQuickComplete.ts` — `getTodayQuickCompleteStatus(habit, todayStr)` → `{ kind: 'inactive' } | { kind: 'active'; storageKey }`; day mode: active iff `isExpectedDay(todayStr)` and key `todayStr`; week mode: active iff Sunday-first week containing today has ≥1 expected day (same rule as `HabitCalendar` week row), key `getWeekCompletionStartDateString(todayStr)`; `npx tsc --noEmit` passes
+- Task H.2: `src/lib/completionMutations.ts` — `toggleHabitCompletion({ userId, habitId, dateStr, frequencyConfig })` (validate `dateStr` → storage key day vs week → select row → delete or insert; Postgres `23505` on insert returns without throw for caller refetch); `useCompletions` delegates toggle to helper then `refetch`; `npx tsc --noEmit` passes
+- Task H.3: `src/lib/homeTodayCompletionFetch.ts` — `fetchHomeTodayCompletionDoneByHabitId({ userId, habits, todayStr })`: H.1 classifies active/inactive; one `select` on `habit_completions` with `user_id` + `habit_id in (...)` + `completed_on in` (distinct storage keys only), then in-memory match per habit to `storageKey`; returns `Record<habitId, boolean>` for **active** ids only; empty `habits` → `{}`; `npx tsc --noEmit` passes
+- Task H.4: `src/hooks/useHomeTodayCompletions.ts` — `doneByHabitId` / `activeByHabitId` / `canQuickComplete` / `toggleToday` (H.2 + `getTodayDateString` + habit `frequency_config`; rejects inactive / missing habit) / `isLoading` (`isAuthLoading` or fetch) / `isTogglingId` / `error` / `refetch`; no Supabase fetch when `habits.length === 0`, no user, or zero actionable habits today (maps from H.1 only); `npx tsc --noEmit` passes
+- Task H.5: `src/components/HabitCard.tsx` — optional `quickComplete?: { checked, busy?, onToggle }`; when omitted, single row `Pressable` (unchanged); when set, `View` row + main `Pressable` (open detail) + `Pressable` `accessibilityRole="checkbox"` (44×44 min hit target, `webPointer`) for toggle; `npx tsc --noEmit` passes
+- Task H.6: `app/index.tsx` — `useHomeTodayCompletions(listHabits)`; **Remaining** / **Completed** `SectionList` (Phase 10 split after filter/sort); `HabitCard` `quickComplete` only when `!isHomeTodayLoading` and active; `busy` = `isTogglingId === id`; toggle errors via hook + `getErrorMessage` banner + Retry (`refetchHomeToday`); `npx tsc --noEmit` passes
+- Task H.7: Regression — `npx tsc --noEmit` and `npx expo export --platform web` succeed (web export to `dist/`); **manual** acceptance per `TASKS.md` H.7: one **day** habit + one **week** habit — mark/unmark from home, open habit detail and confirm completion state matches (run against a configured Supabase project when testing)
 
 ## Next iteration (upcoming)
 
-- **Phase 9 (G.1–G.4)** — completed: client-side search + sort on habits home (`TASKS.md`).
-- Pull next priorities from `BACKLOG.md` into `TASKS.md` when starting new work.
+- None scheduled for Phase 10 (home quick completion). Further ideas: `BACKLOG.md`.
 
 ## Remaining
 

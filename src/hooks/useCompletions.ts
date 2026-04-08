@@ -1,13 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { useAuth } from "@/hooks/useAuth";
+import { toggleHabitCompletion } from "@/lib/completionMutations";
 import type { FrequencyConfig } from "@/lib/types";
 import { supabase } from "@/lib/supabase";
-import { getMonthGridRange, parseDateString } from "@/utils/date";
-import {
-  getWeekCompletionStartDateString,
-  isWeekCompletionGranularity,
-} from "@/utils/frequency";
+import { getMonthGridRange } from "@/utils/date";
 
 export interface UseCompletionsResult {
   completions: string[];
@@ -15,15 +12,6 @@ export interface UseCompletionsResult {
   error: Error | null;
   refetch: () => Promise<void>;
   toggleCompletion: (habitId: string, dateStr: string) => Promise<void>;
-}
-
-function isPostgresUniqueViolation(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    (error as { code?: string }).code === "23505"
-  );
 }
 
 /**
@@ -125,57 +113,12 @@ export function useCompletions(
         throw new Error("Habit id does not match the current habit.");
       }
 
-      try {
-        parseDateString(dateStr);
-      } catch {
-        throw new Error("Invalid date. Expected YYYY-MM-DD.");
-      }
-
-      const storageKey =
-        frequencyConfig != null && isWeekCompletionGranularity(frequencyConfig)
-          ? getWeekCompletionStartDateString(dateStr)
-          : dateStr;
-
-      const { data: existing, error: selectError } = await supabase
-        .from("habit_completions")
-        .select("id")
-        .eq("habit_id", targetId)
-        .eq("user_id", user.id)
-        .eq("completed_on", storageKey)
-        .maybeSingle();
-
-      if (selectError) {
-        console.error("[useCompletions] toggle select failed:", selectError);
-        throw selectError;
-      }
-
-      if (existing) {
-        const { error: deleteError } = await supabase
-          .from("habit_completions")
-          .delete()
-          .eq("id", existing.id)
-          .eq("user_id", user.id);
-
-        if (deleteError) {
-          console.error("[useCompletions] toggle delete failed:", deleteError);
-          throw deleteError;
-        }
-      } else {
-        const { error: insertError } = await supabase.from("habit_completions").insert({
-          habit_id: targetId,
-          user_id: user.id,
-          completed_on: storageKey,
-        });
-
-        if (insertError) {
-          if (isPostgresUniqueViolation(insertError)) {
-            await fetchCompletions();
-            return;
-          }
-          console.error("[useCompletions] toggle insert failed:", insertError);
-          throw insertError;
-        }
-      }
+      await toggleHabitCompletion({
+        userId: user.id,
+        habitId: targetId,
+        dateStr,
+        frequencyConfig,
+      });
 
       await fetchCompletions();
     },

@@ -76,14 +76,17 @@ habit-tracker-mvp/
 │   │   ├── useHabit.ts
 │   │   ├── useHabits.ts
 │   │   ├── useCompletions.ts
+│   │   ├── useHomeTodayCompletions.ts  # Home: today’s completion flags + toggle
 │   │   ├── useYearCompletions.ts
 │   │   └── useHabitForm.ts
 │   ├── lib/                      # Core utilities and config
 │   │   ├── supabase.ts           # Supabase client
 │   │   ├── types.ts              # Shared TypeScript types
-│   │   └── constants.ts          # Colors, defaults, etc.
+│   │   ├── constants.ts          # Colors, defaults, etc.
+│   │   └── completionMutations.ts  # Shared insert/delete for habit_completions (detail + home)
 │   ├── utils/                    # Pure helpers
 │   │   ├── date.ts               # Date handling (see Section 10)
+│   │   ├── todayQuickComplete.ts # Home list: actionable today + storage key (see PRD §17)
 │   │   ├── habitList.ts          # Client-side filter/sort for habits home list
 │   │   ├── frequency.ts          # Frequency logic
 │   │   ├── colorContrast.ts      # Label contrast on habit-color fills (calendar cells)
@@ -195,12 +198,14 @@ If keeping dependencies minimal for MVP, use `useState` + `useEffect` with expli
 - `useHabit(id)`: Fetch a single habit by ID. Returns `{ habit, isLoading, error, refetch }`.
 - `useCompletions(habitId, year, month, frequencyConfig?)`: Optional `frequency_config` (from the habit) so **toggle** uses per-day vs week-start `completed_on` (see §8 / §11). Fetch uses `getMonthGridRange` / grid bounds. Returns `{ completions, isLoading, error, refetch, toggleCompletion }`.
 - `useYearCompletions(habitId, year, frequencyConfig?)`: Optional `frequency_config`; for week granularity, fetch range includes the week-start on or before Jan 1 so the year overview matches the calendar.
+- `useHomeTodayCompletions(habits)` (home list): For the current local “today”, computes per-habit storage keys (day or week-start) for **actionable** habits only, batch-loads matching `habit_completions` rows for those habits, exposes per-habit done/not-done for UI sections and a **toggle** that delegates to `toggleHabitCompletion` in `src/lib/completionMutations.ts` (same semantics as `useCompletions`). No change to DB schema.
 - `useAuth()`: Auth state and helpers (`signIn`, `signOut`, `signUp`, `user`, `session`, `isLoading`).
 
 ### Mutation Hooks
 
 - `createHabit`, `updateHabit`, `archiveHabit`: Return mutation functions. Invalidate or refetch habits list on success.
 - `toggleCompletion(habitId, date)`: Insert or delete completion. Refetch completions for that month. For week granularity, `date` is the **canonical week-start** `YYYY-MM-DD` stored in `completed_on`.
+- **Shared completion toggle (home + detail):** `src/lib/completionMutations.ts` (`toggleHabitCompletion`) performs insert/delete for `habit_completions` so `useCompletions` and `useHomeTodayCompletions` stay consistent on storage keys, RLS-friendly `user_id`/`habit_id` filters, and unique-violation handling. `FrequencyConfig` resolves day vs week-start key from the tapped calendar day or “today”.
 
 ### Error Handling
 

@@ -85,6 +85,8 @@ The first real user is the product creator themself. However, the product should
 - As a user, I want to see my habits in a list.
 - As a user, I want to find a habit quickly when the list grows (e.g. filter by name and choose a simple sort order).
 - As a user, I want the app to emphasize the calendar/history view rather than only a checklist.
+- As a user, I want to mark today’s completion from the habits list when a habit is due (without opening the detail screen first).
+- As a user, I want to see which habits are already completed for the current day (or current week for week-granularity habits) directly on the home list.
 
 ---
 
@@ -133,6 +135,7 @@ A practical MVP approach is:
 - habit detail screen with calendar
 - create/edit habit flow
 - auth screens
+- home quick completion from the habits list (full behavior in §17): toggle today when actionable; **Remaining** / **Completed** grouping; same `habit_completions` rules as detail — **implemented** (`PROJECT_STATE.md`, Phase 10 tasks H.1–H.7)
 
 Week-level weekly habits and custom habit colors are specified in §16 and are **implemented** in the current codebase (see `PROJECT_STATE.md`, tasks F.1–F.11).
 
@@ -208,6 +211,7 @@ Not included initially:
 - optional search-by-name and sort (e.g. name, recently created) on the client
 - quick entry to create a new habit
 - each habit card should visually hint at its color
+- optional quick-complete for today when the habit is actionable (see §17)
 
 ### 3. Create/Edit habit screen
 - name input
@@ -341,3 +345,28 @@ The implementation should avoid premature complexity and prefer explicit pattern
 - **Week boundaries**: Define one rule for “which week a day belongs to” (e.g. week starting Monday or Sunday) and use it consistently in UI and storage.
 - **Storage vs. UX**: Decide whether a week completion is one stored value per week (e.g. canonical week-start date) or multiple day rows; keep RLS and uniqueness rules simple.
 - **Custom color**: Contrast/accessibility on the calendar grid is a minor UX risk; optional guardrails (e.g. contrast hint) are out of scope unless quick.
+
+---
+
+## 17. Home quick completion (habits list)
+
+**Implementation status:** Shipped — see `PROJECT_STATE.md` (Phase 10 tasks H.1–H.7) and `TASKS.md` (Phase 10).
+
+### 17.1 Scope (included)
+
+- **Toggle from list**: A control on each **actionable** home row (see below) to mark or unmark completion for the **current calendar day** (day granularity) or **current calendar week** (week granularity), consistent with §16 storage (`completed_on` as day or canonical week-start).
+- **Completed grouping**: A distinct **Completed** (or equivalent) subsection on the home list for habits that are already completed for that period, and a **remaining** area for habits not yet completed (labels TBD; behavior must stay clear for week-level habits).
+- **Actionable rows**: Same eligibility as habit detail — only days that match `frequency_config` for “today” for day mode; for week mode, the week row is actionable when at least one day in that week is an expected weekday (aligned with the existing calendar).
+
+### 17.2 Explicitly not included
+
+- Changing frequency or granularity from the home screen
+- Bulk actions, swipe gestures, or reorder from this feature
+- Partial/rep-based progress
+- Push reminders or notifications
+- Persisting home-specific UI preferences beyond existing app patterns (session-only is acceptable)
+
+### 17.3 Risks / dependencies
+
+- **Consistency**: Home toggle must call the same completion insert/delete semantics as `useCompletions` / habit detail (including week-start keys) to avoid duplicate or orphan rows.
+- **Performance**: Many habits may require batched reads of `habit_completions` for “today” keys; keep queries bounded and user-scoped (RLS).

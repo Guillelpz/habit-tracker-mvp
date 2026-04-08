@@ -1039,6 +1039,162 @@ G.1 → G.2 → G.3 → G.4
 
 ---
 
+## Phase 10: Home quick completion
+
+Mark completion from the habits home list for **today** (local date) when the habit would be tappable on habit detail, and show a **Completed** subsection for habits already done for the current period (day or week per `frequency_config`). **Scope**: client + Supabase reads/writes only; reuse storage rules from `useCompletions` (day `completed_on` vs week-start). **Out of scope**: archive/edit from home, notifications, manual list reorder, persisting sort/search beyond session (unchanged), new DB columns or RPCs.
+
+**List rules (product, all Phase 10 UI tasks):** Apply Phase 9 **filter then sort** to the full active habit list first. Then split: **Completed** = habits that are **actionable today** (per H.1) **and** marked done for that period; **Remaining** = all other habits (includes actionable not done, and **non-actionable today**—no checkbox). Within each section, keep the **same sort order** as `listHabits` (do not re-sort Completed differently unless a one-line comment documents an exception).
+
+### Task H.1 — Pure helpers: “today” actionable + storage key per habit
+
+**Goal**: Centralize rules for which habits show a quick-complete control and which `completed_on` value toggles (aligned with `HabitCalendar` / `frequency.ts`).
+
+**Files likely involved**:
+- `src/utils/todayQuickComplete.ts` (new), or extend `src/utils/frequency.ts` / `src/utils/date.ts` if a single small module is preferable
+- `src/lib/types.ts` (only if a tiny exported type for the result shape is needed)
+
+**Dependencies**: Existing `Habit`, `getTodayDateString` / `parseDateString`, `isExpectedDay`, `isWeekCompletionGranularity`, `getWeekCompletionStartDateString`, week strip logic consistent with the calendar (Sunday-first week containing `today`)
+
+**Acceptance criteria**:
+- [ ] Exported discriminated result, e.g. `{ kind: 'inactive' } | { kind: 'active'; storageKey: string }` (names flexible), for a given `Habit` and `todayStr` (`YYYY-MM-DD`)
+- [ ] Day-level habits: **active** iff `isExpectedDay(todayStr, frequency_config)`; `storageKey` is `todayStr`
+- [ ] Week-level weekly habits: **active** iff the Sunday-first week containing `today` has **at least one** day where `isExpectedDay` is true (same as a week row on the calendar); `storageKey` is `getWeekCompletionStartDateString(todayStr)`
+- [ ] **inactive** when not actionable (no storage key for today’s toggle)
+- [ ] `npx tsc --noEmit` passes
+
+---
+
+### Task H.2 — Shared completion mutation (insert/delete) used by `useCompletions`
+
+**Goal**: Extract insert/delete + unique-violation handling from `useCompletions.toggleCompletion` into a shared async helper so home and detail cannot diverge.
+
+**Files likely involved**:
+- `src/lib/completionMutations.ts` (new) — or `src/utils/` if you prefer no new `lib` file (follow existing patterns)
+- `src/hooks/useCompletions.ts` (refactor to call helper)
+- `src/lib/supabase.ts` (import only; no API change)
+
+**Dependencies**: Existing `parseDateString`, `isWeekCompletionGranularity`, `getWeekCompletionStartDateString` from `src/utils/frequency.ts` / `src/utils/date.ts` (same key rules as current `useCompletions`). **Does not depend on Task H.1** — the helper takes an arbitrary calendar `dateStr` + `FrequencyConfig`, not “today”-only logic.
+
+**Acceptance criteria**:
+- [ ] One function (or small set) performs: validate `dateStr` → compute storage key from `FrequencyConfig` (day vs week-start) → `select` existing row by `habit_id` + `completed_on` + `user_id` → `delete` or `insert`; on Postgres `23505`, return or throw in a way that lets the caller refetch (same behavior as today)
+- [ ] Invalid `dateStr` handling matches pre-refactor `useCompletions` behavior
+- [ ] `useCompletions` behavior unchanged for **day** and **week** modes (smoke on habit detail calendar)
+- [ ] No new npm dependencies
+- [ ] `npx tsc --noEmit` passes
+
+---
+
+### Task H.3 — Batch fetch: completion rows for “today” keys (home)
+
+**Goal**: Given the current user’s active habits and `todayStr`, load which actionable habits have a matching `habit_completions` row **without** implementing the full React hook yet.
+
+**Files likely involved**:
+- `src/lib/homeTodayCompletionFetch.ts` or `src/utils/homeTodayCompletionFetch.ts` (new), **or** a named export in a file colocated with the hook if you prefer fewer files
+- `src/utils/todayQuickComplete.ts` (from H.1)
+- `src/lib/supabase.ts`
+
+**Dependencies**: Task H.1
+
+**Acceptance criteria**:
+- [ ] For each habit, use H.1 to classify **active** vs **inactive**; only **active** habits participate in the query
+- [ ] **One** `select` (or two only if justified in a comment) scoped by `user_id`, `habit_id in (...)`, and rows that can match: e.g. `select habit_id, completed_on` with filters equivalent to pairing `(habit_id, completed_on)` against the per-habit `storageKey` map — **do not** rely on `completed_on in (...)` alone without matching the correct key **per habit** in memory
+- [ ] Returns a structure the hook can use to build `Record<string, boolean>` (or `Map`) for **active** habit ids: `true` iff a row exists for that habit’s key
+- [ ] Empty `habits` array: no error; returns empty done-map
+- [ ] `npx tsc --noEmit` passes
+
+---
+
+### Task H.4 — Hook: `useHomeTodayCompletions` (compose fetch + toggle)
+
+**Goal**: React hook that uses H.3’s fetch + H.2’s mutation: loading/error/refetch, per-habit done state for **active** habits, and `toggleToday(habitId)` that rejects inactive ids.
+
+**Files likely involved**:
+- `src/hooks/useHomeTodayCompletions.ts` (new)
+- `src/lib/completionMutations.ts`
+- `src/utils/date.ts` (`getTodayDateString`)
+- H.3 fetch module
+
+**Dependencies**: Task H.1, Task H.2, Task H.3
+
+**Acceptance criteria**:
+- [ ] Return shape is explicit in code, e.g. `{ doneByHabitId: Record<string, boolean>; activeByHabitId: Record<string, boolean>; canQuickComplete: (id: string) => boolean; toggleToday: (habitId: string) => Promise<void>; isLoading: boolean; isTogglingId: string | null; error: Error | null; refetch: () => Promise<void> }` (field names flexible but **document inactive** habits: `doneByHabitId[id]` false or absent; `canQuickComplete` false for inactive)
+- [ ] `toggleToday` uses H.2 with **today’s** local date string as the calendar day and the habit’s `frequency_config`; refetches after success; surfaces mutation errors
+- [ ] No fetch when `activeHabits.length === 0` or while auth user is missing (consistent loading/error with existing hooks)
+- [ ] `npx tsc --noEmit` passes
+
+---
+
+### Task H.5 — `HabitCard`: optional quick-complete control (accessible)
+
+**Goal**: Add an optional checkbox (or `Pressable` with role `checkbox`) that does not navigate to detail; primary row navigation remains opening the habit.
+
+**Files likely involved**:
+- `src/components/HabitCard.tsx`
+- `src/utils/webStyles.ts` (only if a pointer/cursor tweak is needed)
+
+**Dependencies**: Task H.1 (understand active vs inactive — hide control when not quick-completable)
+
+**Acceptance criteria**:
+- [ ] When quick-complete props are omitted, card looks and behaves as today (tap row → `onPress`)
+- [ ] When enabled: control toggles completion without firing `onPress` for navigation (separate hit targets / `onStartShouldSetResponder` or equivalent); minimum ~44px touch target where applicable
+- [ ] Accessibility: roles/labels distinguish the toggle from the row navigation
+- [ ] `npx tsc --noEmit` passes
+
+---
+
+### Task H.6 — Home screen: sections + wire hook + toggle UX
+
+**Goal**: **Remaining** / **Completed** sections, `HabitCard` + `useHomeTodayCompletions`, loading alignment, **toggle error** (`getErrorMessage`), and **per-habit or per-toggle busy** so double-tap does not duplicate requests.
+
+**Files likely involved**:
+- `app/index.tsx`
+- `src/hooks/useHomeTodayCompletions.ts`
+- `src/components/HabitCard.tsx`
+- `src/utils/errorMessage.ts`
+
+**Dependencies**: Task H.4, Task H.5
+
+**Acceptance criteria**:
+- [ ] Follow Phase 10 **list rules** at top of this section (filter/sort, split, non-actionable habits in **Remaining** only)
+- [ ] Section headings clear (copy flexible)
+- [ ] Search + sort from Phase 9 unchanged in behavior; apply before split
+- [ ] Empty states: no duplicate/confusing messages when no habits, no matches, or all completed
+- [ ] Loading: user does not see stale toggles while initial habits or completion fetch is loading (reasonable placeholder or spinner)
+- [ ] Toggle failure shows a concise inline/banner error; toggle disabled while `isTogglingId ===` that habit (or equivalent)
+- [ ] `npx tsc --noEmit` passes
+
+---
+
+### Task H.7 — Regression: `expo export` + manual checks
+
+**Goal**: Verify web build and document manual acceptance; no new feature work.
+
+**Files likely involved**:
+- None required (verification only); fix only if H.7 exposes trivial issues
+
+**Dependencies**: Task H.6
+
+**Acceptance criteria**:
+- [ ] `npx tsc --noEmit` and `npx expo export --platform web` succeed
+- [ ] Manual: one **day** habit + one **week** habit — mark/unmark from home; open detail and confirm state matches
+
+---
+
+### Phase 10 dependency summary
+
+```
+H.1 → H.2
+H.1 → H.3 → H.4 → H.6 → H.7
+H.2 → H.4
+H.1 → H.5 → H.6
+H.4 → H.6
+H.5 → H.6
+```
+
+Linear implementation order (single thread): **H.1 → H.2 → H.3 → H.4 → H.5 → H.6 → H.7**
+
+---
+
 ## Task Dependency Summary
 
 ```
@@ -1070,6 +1226,7 @@ G.1 → G.2 → G.3 → G.4
 8.1 ← 3.1, 4.8
 8.2, 8.3 ← all
 G.1 → G.2 → G.3 → G.4
+H.1 → H.2 → H.3 → H.4 → H.5 → H.6 → H.7
 ```
 
 ---

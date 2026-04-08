@@ -1,12 +1,14 @@
 import { Redirect, router } from "expo-router";
 import { useMemo, useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, SectionList, StyleSheet, Text, View } from "react-native";
 
 import { HabitCard } from "@/components/HabitCard";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { useAuth } from "@/hooks/useAuth";
 import { useHabits } from "@/hooks/useHabits";
+import { useHomeTodayCompletions } from "@/hooks/useHomeTodayCompletions";
+import type { Habit } from "@/lib/types";
 import { getErrorMessage } from "@/utils/errorMessage";
 import {
   filterHabitsByNameQuery,
@@ -27,6 +29,34 @@ export default function IndexScreen(): React.ReactElement {
     const filtered = filterHabitsByNameQuery(habits, searchQuery);
     return sortHabitsForList(filtered, sortMode);
   }, [habits, searchQuery, sortMode]);
+
+  const {
+    doneByHabitId,
+    activeByHabitId,
+    toggleToday,
+    isLoading: isHomeTodayLoading,
+    isTogglingId,
+    error: homeTodayError,
+    refetch: refetchHomeToday,
+  } = useHomeTodayCompletions(listHabits);
+
+  /** Phase 10 list rules: filter/sort first, then split (same order as `listHabits`). */
+  const habitSections = useMemo((): { title: string; data: Habit[] }[] => {
+    const remaining = listHabits.filter(
+      (h) => !(activeByHabitId[h.id] === true && doneByHabitId[h.id] === true),
+    );
+    const completed = listHabits.filter(
+      (h) => activeByHabitId[h.id] === true && doneByHabitId[h.id] === true,
+    );
+    const sections: { title: string; data: Habit[] }[] = [];
+    if (remaining.length > 0) {
+      sections.push({ title: "Remaining", data: remaining });
+    }
+    if (completed.length > 0) {
+      sections.push({ title: "Completed", data: completed });
+    }
+    return sections;
+  }, [listHabits, activeByHabitId, doneByHabitId]);
 
   const handleSignOut = async (): Promise<void> => {
     setSignOutError(null);
@@ -79,6 +109,20 @@ export default function IndexScreen(): React.ReactElement {
         </View>
       </View>
       {signOutError ? <Text style={styles.signOutError}>{signOutError}</Text> : null}
+
+      {homeTodayError && !isHabitsLoading ? (
+        <View style={styles.homeTodayErrorBanner}>
+          <Text style={styles.homeTodayErrorText}>{getErrorMessage(homeTodayError)}</Text>
+          <Pressable
+            accessibilityLabel="Retry loading today’s completions"
+            accessibilityRole="button"
+            onPress={() => void refetchHomeToday()}
+            style={({ pressed }) => [styles.homeTodayRetry, webPointer, pressed && styles.homeTodayRetryPressed]}
+          >
+            <Text style={styles.homeTodayRetryText}>Retry</Text>
+          </Pressable>
+        </View>
+      ) : null}
 
       {isHabitsLoading ? (
         <View style={styles.center}>
@@ -162,25 +206,59 @@ export default function IndexScreen(): React.ReactElement {
               </Pressable>
             </View>
           </View>
-          <FlatList
-            style={styles.list}
+          <SectionList
+            ItemSeparatorComponent={() => <View style={styles.rowSeparator} />}
             contentContainerStyle={[
               styles.listContent,
               listHabits.length === 0 && styles.listContentWhenEmpty,
             ]}
-            data={listHabits}
             keyboardDismissMode="on-drag"
-            keyExtractor={(item) => item.id}
             keyboardShouldPersistTaps="handled"
+            keyExtractor={(item) => item.id}
             ListEmptyComponent={
               <View style={styles.searchEmpty}>
                 <Text style={styles.searchEmptyTitle}>No matching habits</Text>
                 <Text style={styles.searchEmptyMessage}>Try a different search term or clear the search.</Text>
               </View>
             }
-            renderItem={({ item }) => (
-              <HabitCard habit={item} onPress={() => router.push(`/habit/${item.id}`)} />
+            renderItem={({ item }) => {
+              const showQuickComplete =
+                !isHomeTodayLoading && activeByHabitId[item.id] === true;
+              return (
+                <HabitCard
+                  habit={item}
+                  onPress={() => router.push(`/habit/${item.id}`)}
+                  quickComplete={
+                    showQuickComplete
+                      ? {
+                          checked: doneByHabitId[item.id] === true,
+                          busy: isTogglingId === item.id,
+                          onToggle: () => {
+                            void toggleToday(item.id).catch(() => {
+                              // Error surfaced via `homeTodayError` in the hook
+                            });
+                          },
+                        }
+                      : undefined
+                  }
+                />
+              );
+            }}
+            renderSectionHeader={({ section }) => (
+              <Text
+                style={[
+                  styles.sectionHeading,
+                  section.title === "Completed" &&
+                    habitSections.length > 1 &&
+                    styles.sectionHeadingCompleted,
+                ]}
+              >
+                {section.title}
+              </Text>
             )}
+            sections={habitSections}
+            stickySectionHeadersEnabled={false}
+            style={styles.list}
           />
         </>
       )}
@@ -368,5 +446,49 @@ const styles = StyleSheet.create({
   },
   sortChipTextSelected: {
     color: "#1d4ed8",
+  },
+  homeTodayErrorBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#fecaca",
+    backgroundColor: "#fef2f2",
+  },
+  homeTodayErrorText: {
+    flex: 1,
+    fontSize: 14,
+    color: "#b91c1c",
+  },
+  homeTodayRetry: {
+    minHeight: 44,
+    justifyContent: "center",
+    paddingHorizontal: 8,
+  },
+  homeTodayRetryPressed: {
+    opacity: 0.75,
+  },
+  homeTodayRetryText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#b91c1c",
+  },
+  sectionHeading: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#374151",
+    marginBottom: 8,
+    marginTop: 4,
+  },
+  /** Extra top spacing when "Completed" follows "Remaining". */
+  sectionHeadingCompleted: {
+    marginTop: 16,
+  },
+  rowSeparator: {
+    height: 12,
   },
 });
